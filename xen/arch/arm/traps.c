@@ -2007,9 +2007,47 @@ static void enter_hypervisor_head(struct cpu_user_regs *regs)
         gic_clear_lrs(current);
 }
 
+static void enable_ccounts(void)
+{
+	uint32_t cc_32=11;
+	asm volatile(
+		"mrs %0, PMCR_EL0\n"
+		"orr %0, %0, #1\n"
+		"orr %0, %0, #(1 << 2)\n"
+		"bic %0, %0, #(1 << 3)\n"
+		"msr PMCR_EL0, %0\n"
+		"mov %0, #0b11111\n"
+		"msr PMSELR_EL0, %0\n"
+		"isb \n"
+		"mrs %0, PMEVTYPER0_EL0\n"
+		"orr %0, %0, #(1 << 27)\n"
+		"bic %0, %0, #(3 << 30)\n"
+		"bic %0, %0, #(3 << 28)\n"
+		"msr PMEVTYPER0_EL0, %0\n"
+		"mrs %0, PMCNTENSET_EL0\n"
+		"orr %0, %0, #(1 << 31)\n"
+		"msr PMCNTENSET_EL0, %0\n"
+		: "=r" (cc_32)
+	);
+
+	isb();
+
+    	if (READ_SYSREG32(MDCR_EL2) != 0) {
+		WRITE_SYSREG(0, MDCR_EL2);
+	}
+}
+
+
 asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
+
+    if (regs->x0==0x4b000000)
+	    return;
+    else if (regs->x0 == 0x4c000000) {
+	    enable_ccounts();
+	    return;
+    }
 
     enter_hypervisor_head(regs);
 
