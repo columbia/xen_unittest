@@ -2010,6 +2010,7 @@ static void enter_hypervisor_head(struct cpu_user_regs *regs)
 static void enable_ccounts(void)
 {
 	uint32_t cc_32=11;
+#ifdef CONFIG_ARM_64
 	asm volatile(
 		"mrs %0, PMCR_EL0\n"
 		"orr %0, %0, #1\n"
@@ -2029,10 +2030,30 @@ static void enable_ccounts(void)
 		"msr PMCNTENSET_EL0, %0\n"
 		: "=r" (cc_32)
 	);
-
+#else
+	asm volatile(
+		"mrc     p15, 0, %0, c9, c12, 0\n"
+		"orr %0, %0, #1\n"
+		"orr %0, %0, #(1 << 2)\n"
+		"bic %0, %0, #(1 << 3)\n"
+		"mcr     p15, 0, %0, c9, c12, 0\n"
+		"mov %0, #0b11111\n"
+		"mcr     p15, 0, %0, c9, c12, 5\n"
+		"isb \n"
+		"mrc     p15, 0, %0, c9, c13, 1\n"
+		"orr %0, %0, #(1 << 27)\n"
+		"bic %0, %0, #(3 << 30)\n"
+		"bic %0, %0, #(3 << 28)\n"
+		"mcr     p15, 0, %0, c9, c13, 1\n"
+		"mrc     p15, 0, %0, c9, c12, 1\n"
+		"orr %0, %0, #(1 << 31)\n"
+		"mcr     p15, 0, %0, c9, c12, 1\n"
+		: "=r" (cc_32)
+	);  
+#endif
 	isb();
 
-    	if (READ_SYSREG32(MDCR_EL2) != 0) {
+    	if (READ_SYSREG(MDCR_EL2) != 0) {
 		WRITE_SYSREG(0, MDCR_EL2);
 	}
 }
@@ -2044,7 +2065,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 
     if (regs->x0==0x4b000000)
 	    return;
-    else if (regs->x0 == 0x4c000000) {
+    else if (regs->x0 == 0x4b000001) {
 	    enable_ccounts();
 	    return;
     }
