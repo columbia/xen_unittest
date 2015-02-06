@@ -2063,12 +2063,22 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
 
+#ifdef CONFIG_ARM_64
     if (regs->x0==0x4b000000)
 	    return;
     else if (regs->x0 == 0x4b000001) {
 	    enable_ccounts();
 	    return;
     }
+#else
+    if (regs->r0==0x4b000000)
+	    return;
+    else if (regs->r0 == 0x4b000001) {
+	    enable_ccounts();
+	    return;
+    }
+#endif
+
 
     enter_hypervisor_head(regs);
 
