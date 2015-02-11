@@ -340,6 +340,8 @@ typedef uint64_t xen_callback_t;
 #define PSR_MODE_UND 0x1b
 #define PSR_MODE_SYS 0x1f
 
+#define FAKE_R0 0x4c000000
+
 /* 64 bit modes */
 #define PSR_MODE_BIT  0x10 /* Set iff AArch32 */
 #define PSR_MODE_EL3h 0x0d

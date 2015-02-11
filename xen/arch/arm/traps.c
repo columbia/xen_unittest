@@ -2073,6 +2073,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 #else
     if (regs->r0==0x4b000000)
 	    return;
+	    
     else if (regs->r0 == 0x4b000001) {
 	    enable_ccounts();
 	    return;

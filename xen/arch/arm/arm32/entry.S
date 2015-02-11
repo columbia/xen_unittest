@@ -47,6 +47,9 @@ save_guest_regs:
 #define DEFINE_TRAP_ENTRY(trap)                                         \
         ALIGN;                                                          \
 trap_##trap:                                                            \
+	cmp r0, #FAKE_R0;						\
+	mrceq p15, 0, r1, c9, c13, 0;					\
+	ereteq;								\
         SAVE_ALL;                                                       \
         cpsie i;        /* local_irq_enable */                          \
         adr lr, return_from_trap;                                       \
