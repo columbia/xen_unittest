@@ -188,6 +188,15 @@ hyp_irq:
         exit    hyp=1
 
 guest_sync:
+/*
+	cmp x0, #0x10000
+	bne guest_sync_normal
+	mrs x1,PMCCNTR_EL0
+        entry   hyp=0, compat=0
+        exit    hyp=0, compat=0
+	eret
+guest_sync_normal:
+*/
         entry   hyp=0, compat=0
         msr     daifclr, #2
         mov     x0, sp
@@ -260,7 +269,6 @@ return_from_trap:
         pop     x28, x29
 
         ldr     lr, [sp], #(UREGS_SPSR_el1 - UREGS_LR) /* CPSR, PC, SP, LR */
-
         eret
 
 /*
