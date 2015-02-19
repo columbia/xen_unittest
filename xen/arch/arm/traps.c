@@ -2058,24 +2058,60 @@ static void enable_ccounts(void)
 	}
 }
 
+uint64_t trap_und = 0;
+uint64_t trap_svc = 0;
+uint64_t trap_pre = 0;
+uint64_t trap_daa = 0;
+uint64_t trap_hyp = 0;
+uint64_t trap_irq = 0;
+uint64_t trap_fiq = 0;
+
+void reset_counter(void)
+{
+	trap_und = 0;
+	trap_svc = 0;
+	trap_pre = 0;
+	trap_daa = 0;
+	trap_hyp = 0;
+	trap_irq = 0;
+	trap_fiq = 0;
+}
+
+void print_counter(void)
+{
+    printk("-------exception count--------\n");
+    printk("trap_und %016"PRIu64"\n",trap_und);
+    printk("trap_svc %016"PRIu64"\n",trap_svc);
+    printk("trap_pre %016"PRIu64"\n",trap_pre);
+    printk("trap_daa %016"PRIu64"\n",trap_daa);
+    printk("trap_hyp %016"PRIu64"\n",trap_hyp);
+    printk("trap_irq %016"PRIu64"\n",trap_irq);
+    printk("trap_fiq %016"PRIu64"\n",trap_fiq);
+    printk("------------------------------\n");
+}
 
 asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
+    trap_hyp++;
 
 #ifdef CONFIG_ARM_64
     if (regs->x0==0x4b000000)
 	    return;
     else if (regs->x0 == 0x4b000001) {
 	    enable_ccounts();
+	    print_counter();
+	    reset_counter();
 	    return;
     }
 #else
     if (regs->r0==0x4b000000)
 	    return;
-	    
+
     else if (regs->r0 == 0x4b000001) {
 	    enable_ccounts();
+	    print_counter();
+	    reset_counter();
 	    return;
     }
 #endif
@@ -2191,12 +2227,14 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
+	trap_irq++;
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 0);
 }
 
 asmlinkage void do_trap_fiq(struct cpu_user_regs *regs)
 {
+	trap_fiq++;
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 1);
 }
