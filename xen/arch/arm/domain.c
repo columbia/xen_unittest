@@ -36,6 +36,9 @@
 #include "vtimer.h"
 #include "vuart.h"
 
+
+
+
 DEFINE_PER_CPU(struct vcpu *, curr_vcpu);
 
 void idle_loop(void)
@@ -58,19 +61,54 @@ void idle_loop(void)
     }
 }
 
+//#define COUNT_CYCLES
+#ifdef COUNT_CYCLES
+enum breakdown { VGIC, TIMER, CP15, VFP, SYSREGS, BRK_MAX};
+#define GET_CYCLES(x)	getCycle(x)
+#else
+#define GET_CYCLES(x)
+#endif
+
+static inline void getCycle(unsigned long long * cnt)
+{
+	if (smp_processor_id() == 1) {
+   	 	asm volatile("mrs %0, PMCCNTR_EL0" : "=r" (*cnt) ::);
+	}
+	else
+		*cnt = 0;
+}
+
+
 static void ctxt_switch_from(struct vcpu *p)
 {
+#ifdef COUNT_CYCLES
+	static uint32_t from_cnt = 0;
+	static uint32_t from_min[BRK_MAX] = {0};
+	static uint32_t from_max[BRK_MAX] = {0};
+	static unsigned long long from_sum[BRK_MAX] = {0};
+	static uint32_t iteration = 10*1000;
+	static unsigned long long start_time = 0;
+	static unsigned long long end_time = 0;
+
+	unsigned long long cc_before[BRK_MAX]= {0}, cc_after[BRK_MAX]={0};
+	unsigned long long diff = 0;
+	if (start_time ==0)
+		GET_CYCLES(&start_time);
+#endif
+
     /* When the idle VCPU is running, Xen will always stay in hypervisor
      * mode. Therefore we don't need to save the context of an idle VCPU.
      */
     if ( is_idle_vcpu(p) )
         goto end_context;
 
-    p2m_save_state(p);
-
     /* CP 15 */
+    GET_CYCLES(&cc_before[CP15]);
     p->arch.csselr = READ_SYSREG(CSSELR_EL1);
+    GET_CYCLES(&cc_after[CP15]);
 
+    GET_CYCLES(&cc_before[SYSREGS]);
+    p2m_save_state(p);
     /* Control Registers */
     p->arch.cpacr = READ_SYSREG(CPACR_EL1);
 
@@ -80,8 +118,10 @@ static void ctxt_switch_from(struct vcpu *p)
     p->arch.tpidr_el1 = READ_SYSREG(TPIDR_EL1);
 
     /* Arch timer */
+    GET_CYCLES(&cc_before[TIMER]);
     p->arch.cntkctl = READ_SYSREG32(CNTKCTL_EL1);
     virt_timer_save(p);
+    GET_CYCLES(&cc_after[TIMER]);
 
     if ( is_32bit_domain(p->domain) && cpu_has_thumbee )
     {
@@ -129,41 +169,92 @@ static void ctxt_switch_from(struct vcpu *p)
     p->arch.afsr0 = READ_SYSREG(AFSR0_EL1);
     p->arch.afsr1 = READ_SYSREG(AFSR1_EL1);
 
+    GET_CYCLES(&cc_after[SYSREGS]);
     /* XXX MPU */
 
     /* VFP */
+    GET_CYCLES(&cc_before[VFP]);
     vfp_save_state(p);
+    GET_CYCLES(&cc_after[VFP]);
 
     /* VGIC */
+    GET_CYCLES(&cc_before[VGIC]);
     gic_save_state(p);
-
+    GET_CYCLES(&cc_after[VGIC]);
     isb();
 
 end_context:
     context_saved(p);
+
+#ifdef COUNT_CYCLES
+    if (cc_after[CP15] == 0 || cc_before[CP15] == 0)
+	    return;
+    if (from_cnt >= iteration)
+	    return;
+    from_cnt++;
+
+    for (int i = VGIC; i < BRK_MAX; i++) {
+	    diff = cc_after[i] - cc_before[i];
+	    if (from_min[i] ==0 || from_min[i] > diff)
+		    from_min[i] = diff;
+	    if (from_max[i] < diff)
+		    from_max[i] = diff;
+
+	    from_sum[i] += diff;
+	    if (from_cnt == iteration) {
+		    from_sum[i] /= iteration;
+		    GET_CYCLES(&end_time);
+		    printk("[FINAL SAVE-%d] min: %u avg: %lld, max: %u, start: %llu, end: %llu\n", i, from_min[i], from_sum[i], from_max[i], start_time, end_time);
+	    }
+
+	    if (from_cnt % 1000 == 0){
+		    printk("[SAVE-%d] min: %u avg: %lld, max: %u\n", i, from_min[i], from_sum[i], from_max[i]);
+	    }
+    }
+#endif
+
 }
 
 static void ctxt_switch_to(struct vcpu *n)
 {
+#ifdef COUNT_CYCLES
+	static uint32_t to_cnt = 0;
+	static uint32_t to_min[BRK_MAX] = {0};
+	static uint32_t to_max[BRK_MAX] = {0};
+	static unsigned long long to_sum[BRK_MAX] = {0};
+	static uint32_t iteration = 10*1000;
+
+	static unsigned long long start_time = 0;
+	static unsigned long long end_time = 0;
+	unsigned long long cc_before[BRK_MAX]= {0}, cc_after[BRK_MAX]={0};
+	unsigned long long diff = 0;
+	if (start_time ==0)
+		GET_CYCLES(&start_time);
+#endif
+
     /* When the idle VCPU is running, Xen will always stay in hypervisor
      * mode. Therefore we don't need to restore the context of an idle VCPU.
      */
     if ( is_idle_vcpu(n) )
         return;
 
-    p2m_restore_state(n);
-
     WRITE_SYSREG32(n->domain->arch.vpidr, VPIDR_EL2);
     WRITE_SYSREG(n->arch.vmpidr, VMPIDR_EL2);
 
     /* VGIC */
+	GET_CYCLES(&cc_before[VGIC]);
     gic_restore_state(n);
+	GET_CYCLES(&cc_after[VGIC]);
 
     /* VFP */
+	GET_CYCLES(&cc_before[VFP]);
     vfp_restore_state(n);
+	GET_CYCLES(&cc_after[VFP]);
 
     /* XXX MPU */
 
+	GET_CYCLES(&cc_before[SYSREGS]);
+    p2m_restore_state(n);
     /* Fault Status */
 #if defined(CONFIG_ARM_32)
     WRITE_CP32(n->arch.dfar, DFAR);
@@ -218,15 +309,46 @@ static void ctxt_switch_to(struct vcpu *n)
 #endif
     isb();
 
+	GET_CYCLES(&cc_after[SYSREGS]);
     /* CP 15 */
+	GET_CYCLES(&cc_before[CP15]);
     WRITE_SYSREG(n->arch.csselr, CSSELR_EL1);
-
+	GET_CYCLES(&cc_after[CP15]);
     isb();
 
     /* This is could trigger an hardware interrupt from the virtual
      * timer. The interrupt needs to be injected into the guest. */
+    GET_CYCLES(&cc_before[TIMER]);
     WRITE_SYSREG32(n->arch.cntkctl, CNTKCTL_EL1);
     virt_timer_restore(n);
+    GET_CYCLES(&cc_after[TIMER]);
+
+#ifdef COUNT_CYCLES
+    if (cc_after[CP15] == 0 || cc_before[CP15] == 0)
+	    return;
+    if (to_cnt == iteration)
+	    return;
+    to_cnt++;
+
+    for (int i = VGIC; i < BRK_MAX; i++) {
+	    diff = cc_after[i] - cc_before[i];
+	    if (to_min[i] ==0 || to_min[i] > diff)
+		    to_min[i] = diff;
+	    if (to_max[i] < diff)
+		    to_max[i] = diff;
+
+	    to_sum[i] += diff;
+	    if (to_cnt == iteration) {
+		    to_sum[i] /= iteration;
+		    GET_CYCLES(&end_time);
+		    printk("[FINAL RESTORE-%d] min: %u avg: %lld, max: %u, start: %llu, end: %llu\n", i, to_min[i], to_sum[i], to_max[i], start_time, end_time);
+	    } else if (to_cnt % 1000 == 0){
+		    printk("[RESTORE-%d] min: %u avg: %lld, max: %u\n", i, to_min[i], to_sum[i], to_max[i]);
+	    }
+    }
+#endif
+
+
 }
 
 /* Update per-VCPU guest runstate shared memory area (if registered). */

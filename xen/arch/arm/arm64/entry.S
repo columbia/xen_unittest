@@ -133,7 +133,6 @@ lr      .req    x30             // link register
         .if \hyp == 0         /* Guest mode */
 
         bl      leave_hypervisor_tail /* Disables interrupts on return */
-
         exit_guest \compat
 
         .endif
@@ -150,6 +149,7 @@ lr      .req    x30             // link register
 #define BAD_IRQ         1
 #define BAD_FIQ         2
 #define BAD_ERROR       3
+//#define BREAKDOWN
 
         .macro  invalid, reason
         mov     x0, sp
@@ -188,15 +188,16 @@ hyp_irq:
         exit    hyp=1
 
 guest_sync:
-/*
-	cmp x0, #0x10000
+#ifdef BREAKDOWN
+	cmp x0, #0xb0000
 	bne guest_sync_normal
 	mrs x1,PMCCNTR_EL0
         entry   hyp=0, compat=0
         exit    hyp=0, compat=0
 	eret
+
 guest_sync_normal:
-*/
+#endif
         entry   hyp=0, compat=0
         msr     daifclr, #2
         mov     x0, sp
@@ -244,8 +245,16 @@ ENTRY(return_to_new_vcpu64)
         exit    hyp=0, compat=0
 
 return_from_trap:
-        msr     daifset, #2 /* Mask interrupts */
 
+#ifdef BREAKDOWN
+	ldr	x7, [sp, #32]
+	cmp x7, #0xb0000
+	bne rft_normal 
+	mrs x7,PMCCNTR_EL0
+        str     x7, [sp, #32]
+rft_normal:
+#endif
+        msr     daifset, #2 /* Mask interrupts */
         ldp     x21, x22, [sp, #UREGS_PC]       // load ELR, SPSR
 
         pop     x0, x1

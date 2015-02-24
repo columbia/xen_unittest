@@ -2058,6 +2058,8 @@ static void enable_ccounts(void)
 	}
 }
 
+//#define COUNT_TRAP
+#ifdef COUNT_TRAP
 uint64_t trap_und = 0;
 uint64_t trap_svc = 0;
 uint64_t trap_pre = 0;
@@ -2089,19 +2091,17 @@ void print_counter(void)
     printk("trap_fiq %016"PRIu64"\n",trap_fiq);
     printk("------------------------------\n");
 }
+#endif
 
 asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
-    trap_hyp++;
 
 #ifdef CONFIG_ARM_64
     if (regs->x0==0x4b000000)
 	    return;
     else if (regs->x0 == 0x4b000001) {
 	    enable_ccounts();
-	    print_counter();
-	    reset_counter();
 	    return;
     }
 #else
@@ -2110,8 +2110,6 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 
     else if (regs->r0 == 0x4b000001) {
 	    enable_ccounts();
-	    print_counter();
-	    reset_counter();
 	    return;
     }
 #endif
@@ -2227,14 +2225,12 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
-	trap_irq++;
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 0);
 }
 
 asmlinkage void do_trap_fiq(struct cpu_user_regs *regs)
 {
-	trap_fiq++;
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 1);
 }
