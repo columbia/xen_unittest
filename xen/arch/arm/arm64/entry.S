@@ -189,7 +189,7 @@ hyp_irq:
 
 guest_sync:
 #ifdef BREAKDOWN
-	cmp x0, #0xb0000
+	cmp x0, #0x10000
 	bne guest_sync_normal
 	mrs x1,PMCCNTR_EL0
         entry   hyp=0, compat=0
@@ -248,7 +248,7 @@ return_from_trap:
 
 #ifdef BREAKDOWN
 	ldr	x7, [sp, #32]
-	cmp x7, #0xb0000
+	cmp x7, #0x10000
 	bne rft_normal 
 	mrs x7,PMCCNTR_EL0
         str     x7, [sp, #32]
