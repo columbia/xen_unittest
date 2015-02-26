@@ -61,14 +61,10 @@ void idle_loop(void)
     }
 }
 
-//#define COUNT_CYCLES
+#define COUNT_CYCLES
 #ifdef COUNT_CYCLES
 enum breakdown { VGIC, TIMER, CP15, VFP, SYSREGS, BRK_MAX};
 #define GET_CYCLES(x)	getCycle(x)
-#else
-#define GET_CYCLES(x)
-#endif
-
 static inline void getCycle(unsigned long long * cnt)
 {
 	if (smp_processor_id() == 1) {
@@ -77,6 +73,32 @@ static inline void getCycle(unsigned long long * cnt)
 	else
 		*cnt = 0;
 }
+
+#define FN2(X) #X
+#define FN(X) FN2(X)
+#define MEASURE_CC(name)                        \
+	asm volatile(						\
+			"isb\n\t"				\
+			"mrs x19, PMCCNTR_EL0\n\t"		\
+			"isb\n\t"				\
+			"mov x0, %[vcpup]\n\t"			\
+			"bl " FN(name) "\n\t"			\
+			"isb\n\t"				\
+			"mrs x20, PMCCNTR_EL0\n\t"		\
+			"isb\n\t"				\
+			"mov %[start], x19\n\t"			\
+			"mov %[end], x20\n\t"			\
+			:[start] "=r" (cc_start),		\
+			 [end] "=r" (cc_end)			\
+			:[vcpup] "r" (n)			\
+			:					\
+			"x0", "x19", "x20");			\
+	if (cc_end != 0)	\
+		printk("[" FN(name) "]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", cc_start, cc_end, cc_end-cc_start);     \
+
+#else
+#define GET_CYCLES(x)
+#endif
 
 
 static void ctxt_switch_from(struct vcpu *p)
@@ -218,6 +240,7 @@ end_context:
 static void ctxt_switch_to(struct vcpu *n)
 {
 #ifdef COUNT_CYCLES
+	unsigned long long cc_start = 0, cc_end = 0;
 	static uint32_t to_cnt = 0;
 	static uint32_t to_min[BRK_MAX] = {0};
 	static uint32_t to_max[BRK_MAX] = {0};
@@ -231,6 +254,7 @@ static void ctxt_switch_to(struct vcpu *n)
 	if (start_time ==0)
 		GET_CYCLES(&start_time);
 #endif
+	
 
     /* When the idle VCPU is running, Xen will always stay in hypervisor
      * mode. Therefore we don't need to restore the context of an idle VCPU.
@@ -241,16 +265,18 @@ static void ctxt_switch_to(struct vcpu *n)
     WRITE_SYSREG32(n->domain->arch.vpidr, VPIDR_EL2);
     WRITE_SYSREG(n->arch.vmpidr, VMPIDR_EL2);
 
-    /* VGIC */
-	GET_CYCLES(&cc_before[VGIC]);
+   /* VGIC */
+ #ifdef COUNT_CYCLES
+    MEASURE_CC(gic_restore_state);
+ #else
     gic_restore_state(n);
-	GET_CYCLES(&cc_after[VGIC]);
+ #endif
 
     /* VFP */
 	GET_CYCLES(&cc_before[VFP]);
     vfp_restore_state(n);
 	GET_CYCLES(&cc_after[VFP]);
-
+ 
     /* XXX MPU */
 
 	GET_CYCLES(&cc_before[SYSREGS]);
