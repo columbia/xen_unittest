@@ -237,6 +237,67 @@ end_context:
 
 }
 
+#ifdef COUNT_CYCLES
+void sysregs_restore(struct vcpu *n)
+{
+	p2m_restore_state(n);
+	/* Fault Status */
+#if defined(CONFIG_ARM_32)
+	WRITE_CP32(n->arch.dfar, DFAR);
+	WRITE_CP32(n->arch.ifar, IFAR);
+	WRITE_CP32(n->arch.dfsr, DFSR);
+#elif defined(CONFIG_ARM_64)
+	WRITE_SYSREG64(n->arch.far, FAR_EL1);
+	WRITE_SYSREG64(n->arch.esr, ESR_EL1);
+#endif
+
+	if ( is_32bit_domain(n->domain) )
+		WRITE_SYSREG(n->arch.ifsr, IFSR32_EL2);
+	WRITE_SYSREG(n->arch.afsr0, AFSR0_EL1);
+	WRITE_SYSREG(n->arch.afsr1, AFSR1_EL1);
+
+	/* MMU */
+	WRITE_SYSREG(n->arch.vbar, VBAR_EL1);
+	WRITE_SYSREG(n->arch.ttbcr, TCR_EL1);
+	WRITE_SYSREG64(n->arch.ttbr0, TTBR0_EL1);
+	WRITE_SYSREG64(n->arch.ttbr1, TTBR1_EL1);
+	if ( is_32bit_domain(n->domain) )
+		WRITE_SYSREG(n->arch.dacr, DACR32_EL2);
+	WRITE_SYSREG64(n->arch.par, PAR_EL1);
+#if defined(CONFIG_ARM_32)
+	WRITE_CP32(n->arch.mair0, MAIR0);
+	WRITE_CP32(n->arch.mair1, MAIR1);
+	WRITE_CP32(n->arch.amair0, AMAIR0);
+	WRITE_CP32(n->arch.amair1, AMAIR1);
+#elif defined(CONFIG_ARM_64)
+	WRITE_SYSREG64(n->arch.mair, MAIR_EL1);
+	WRITE_SYSREG64(n->arch.amair, AMAIR_EL1);
+#endif
+	isb();
+
+	/* Control Registers */
+	WRITE_SYSREG(n->arch.cpacr, CPACR_EL1);
+
+	WRITE_SYSREG(n->arch.contextidr, CONTEXTIDR_EL1);
+	WRITE_SYSREG(n->arch.tpidr_el0, TPIDR_EL0);
+	WRITE_SYSREG(n->arch.tpidrro_el0, TPIDRRO_EL0);
+	WRITE_SYSREG(n->arch.tpidr_el1, TPIDR_EL1);
+
+	if ( is_32bit_domain(n->domain) && cpu_has_thumbee )
+	{
+		WRITE_SYSREG32(n->arch.teecr, TEECR32_EL1);
+		WRITE_SYSREG32(n->arch.teehbr, TEEHBR32_EL1);
+	}
+
+#ifdef CONFIG_ARM_32
+	WRITE_CP32(n->arch.joscr, JOSCR);
+	WRITE_CP32(n->arch.jmcr, JMCR);
+#endif
+	isb();
+}
+#endif
+
+
 static void ctxt_switch_to(struct vcpu *n)
 {
 #ifdef COUNT_CYCLES
@@ -279,7 +340,9 @@ static void ctxt_switch_to(struct vcpu *n)
  
     /* XXX MPU */
 
-	GET_CYCLES(&cc_before[SYSREGS]);
+#ifdef COUNT_CYCLES
+	MEASURE_CC(sysregs_restore);
+#else
     p2m_restore_state(n);
     /* Fault Status */
 #if defined(CONFIG_ARM_32)
@@ -334,8 +397,8 @@ static void ctxt_switch_to(struct vcpu *n)
     WRITE_CP32(n->arch.jmcr, JMCR);
 #endif
     isb();
+#endif
 
-	GET_CYCLES(&cc_after[SYSREGS]);
     /* CP 15 */
 	GET_CYCLES(&cc_before[CP15]);
     WRITE_SYSREG(n->arch.csselr, CSSELR_EL1);
