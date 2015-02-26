@@ -61,18 +61,13 @@ void idle_loop(void)
     }
 }
 
-#define COUNT_CYCLES
-#ifdef COUNT_CYCLES
-enum breakdown { VGIC, TIMER, CP15, VFP, SYSREGS, BRK_MAX};
-#define GET_CYCLES(x)	getCycle(x)
-static inline void getCycle(unsigned long long * cnt)
-{
-	if (smp_processor_id() == 1) {
-   	 	asm volatile("mrs %0, PMCCNTR_EL0" : "=r" (*cnt) ::);
-	}
-	else
-		*cnt = 0;
-}
+//#define MEASURE_BREAKDOWN
+#ifdef MEASURE_BREAKDOWN
+#ifdef CONFIG_ARM64
+typedef unsigned long long ccount_t;
+#else
+typedef unsigned long ccount_t;
+#endif
 
 #define FN2(X) #X
 #define FN(X) FN2(X)
@@ -96,40 +91,15 @@ static inline void getCycle(unsigned long long * cnt)
 	if (cc_end != 0)	\
 		printk("[" FN(name) "]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", cc_start, cc_end, cc_end-cc_start);     \
 
-#else
-#define GET_CYCLES(x)
 #endif
 
-
-static void ctxt_switch_from(struct vcpu *p)
+void cp15_save(struct vcpu *p)
 {
-#ifdef COUNT_CYCLES
-	static uint32_t from_cnt = 0;
-	static uint32_t from_min[BRK_MAX] = {0};
-	static uint32_t from_max[BRK_MAX] = {0};
-	static unsigned long long from_sum[BRK_MAX] = {0};
-	static uint32_t iteration = 10*1000;
-	static unsigned long long start_time = 0;
-	static unsigned long long end_time = 0;
-
-	unsigned long long cc_before[BRK_MAX]= {0}, cc_after[BRK_MAX]={0};
-	unsigned long long diff = 0;
-	if (start_time ==0)
-		GET_CYCLES(&start_time);
-#endif
-
-    /* When the idle VCPU is running, Xen will always stay in hypervisor
-     * mode. Therefore we don't need to save the context of an idle VCPU.
-     */
-    if ( is_idle_vcpu(p) )
-        goto end_context;
-
-    /* CP 15 */
-    GET_CYCLES(&cc_before[CP15]);
     p->arch.csselr = READ_SYSREG(CSSELR_EL1);
-    GET_CYCLES(&cc_after[CP15]);
+}
 
-    GET_CYCLES(&cc_before[SYSREGS]);
+void sysregs_save(struct vcpu *p)
+{
     p2m_save_state(p);
     /* Control Registers */
     p->arch.cpacr = READ_SYSREG(CPACR_EL1);
@@ -139,11 +109,10 @@ static void ctxt_switch_from(struct vcpu *p)
     p->arch.tpidrro_el0 = READ_SYSREG(TPIDRRO_EL0);
     p->arch.tpidr_el1 = READ_SYSREG(TPIDR_EL1);
 
+	/* TODO: timer is included in sysress */
     /* Arch timer */
-    GET_CYCLES(&cc_before[TIMER]);
     p->arch.cntkctl = READ_SYSREG32(CNTKCTL_EL1);
     virt_timer_save(p);
-    GET_CYCLES(&cc_after[TIMER]);
 
     if ( is_32bit_domain(p->domain) && cpu_has_thumbee )
     {
@@ -190,54 +159,114 @@ static void ctxt_switch_from(struct vcpu *p)
         p->arch.ifsr  = READ_SYSREG(IFSR32_EL2);
     p->arch.afsr0 = READ_SYSREG(AFSR0_EL1);
     p->arch.afsr1 = READ_SYSREG(AFSR1_EL1);
+}
 
-    GET_CYCLES(&cc_after[SYSREGS]);
+static void ctxt_switch_from(struct vcpu *p)
+{
+#ifdef MEASURE_BREAKDOWN
+	unsigned long long cc_start = 0, cc_end = 0;
+	struct vcpu *n=p;
+#endif
+
+    /* When the idle VCPU is running, Xen will always stay in hypervisor
+     * mode. Therefore we don't need to save the context of an idle VCPU.
+     */
+    if ( is_idle_vcpu(p) )
+        goto end_context;
+
+    /* CP 15 */
+#ifdef MEASURE_BREAKDOWN
+    MEASURE_CC(cp15_save);
+#else
+    p->arch.csselr = READ_SYSREG(CSSELR_EL1);
+#endif
+
+#ifdef MEASURE_BREAKDOWN
+    MEASURE_CC(sysregs_save);
+#else
+    p2m_save_state(p);
+    /* Control Registers */
+    p->arch.cpacr = READ_SYSREG(CPACR_EL1);
+
+    p->arch.contextidr = READ_SYSREG(CONTEXTIDR_EL1);
+    p->arch.tpidr_el0 = READ_SYSREG(TPIDR_EL0);
+    p->arch.tpidrro_el0 = READ_SYSREG(TPIDRRO_EL0);
+    p->arch.tpidr_el1 = READ_SYSREG(TPIDR_EL1);
+
+    /* Arch timer */
+    /* TODO: timer is included in sysregs */
+    p->arch.cntkctl = READ_SYSREG32(CNTKCTL_EL1);
+    virt_timer_save(p);
+
+    if ( is_32bit_domain(p->domain) && cpu_has_thumbee )
+    {
+        p->arch.teecr = READ_SYSREG32(TEECR32_EL1);
+        p->arch.teehbr = READ_SYSREG32(TEEHBR32_EL1);
+    }
+
+#ifdef CONFIG_ARM_32
+    p->arch.joscr = READ_CP32(JOSCR);
+    p->arch.jmcr = READ_CP32(JMCR);
+#endif
+
+    isb();
+
+    /* MMU */
+    p->arch.vbar = READ_SYSREG(VBAR_EL1);
+    p->arch.ttbcr = READ_SYSREG(TCR_EL1);
+    p->arch.ttbr0 = READ_SYSREG64(TTBR0_EL1);
+    p->arch.ttbr1 = READ_SYSREG64(TTBR1_EL1);
+    if ( is_32bit_domain(p->domain) )
+        p->arch.dacr = READ_SYSREG(DACR32_EL2);
+    p->arch.par = READ_SYSREG64(PAR_EL1);
+#if defined(CONFIG_ARM_32)
+    p->arch.mair0 = READ_CP32(MAIR0);
+    p->arch.mair1 = READ_CP32(MAIR1);
+    p->arch.amair0 = READ_CP32(AMAIR0);
+    p->arch.amair1 = READ_CP32(AMAIR1);
+#else
+    p->arch.mair = READ_SYSREG64(MAIR_EL1);
+    p->arch.amair = READ_SYSREG64(AMAIR_EL1);
+#endif
+
+    /* Fault Status */
+#if defined(CONFIG_ARM_32)
+    p->arch.dfar = READ_CP32(DFAR);
+    p->arch.ifar = READ_CP32(IFAR);
+    p->arch.dfsr = READ_CP32(DFSR);
+#elif defined(CONFIG_ARM_64)
+    p->arch.far = READ_SYSREG64(FAR_EL1);
+    p->arch.esr = READ_SYSREG64(ESR_EL1);
+#endif
+
+    if ( is_32bit_domain(p->domain) )
+        p->arch.ifsr  = READ_SYSREG(IFSR32_EL2);
+    p->arch.afsr0 = READ_SYSREG(AFSR0_EL1);
+    p->arch.afsr1 = READ_SYSREG(AFSR1_EL1);
+#endif /* MEASURE_BREAKDOWN */
+
     /* XXX MPU */
 
     /* VFP */
-    GET_CYCLES(&cc_before[VFP]);
+#ifdef MEASURE_BREAKDOWN
+    MEASURE_CC(vfp_save_state);
+#else
     vfp_save_state(p);
-    GET_CYCLES(&cc_after[VFP]);
+#endif
 
     /* VGIC */
-    GET_CYCLES(&cc_before[VGIC]);
+#ifdef MEASURE_BREAKDOWN
+    MEASURE_CC(gic_save_state);
+#else
     gic_save_state(p);
-    GET_CYCLES(&cc_after[VGIC]);
+#endif
     isb();
 
 end_context:
     context_saved(p);
-
-#ifdef COUNT_CYCLES
-    if (cc_after[CP15] == 0 || cc_before[CP15] == 0)
-	    return;
-    if (from_cnt >= iteration)
-	    return;
-    from_cnt++;
-
-    for (int i = VGIC; i < BRK_MAX; i++) {
-	    diff = cc_after[i] - cc_before[i];
-	    if (from_min[i] ==0 || from_min[i] > diff)
-		    from_min[i] = diff;
-	    if (from_max[i] < diff)
-		    from_max[i] = diff;
-
-	    from_sum[i] += diff;
-	    if (from_cnt == iteration) {
-		    from_sum[i] /= iteration;
-		    GET_CYCLES(&end_time);
-		    printk("[FINAL SAVE-%d] min: %u avg: %lld, max: %u, start: %llu, end: %llu\n", i, from_min[i], from_sum[i], from_max[i], start_time, end_time);
-	    }
-
-	    if (from_cnt % 1000 == 0){
-		    printk("[SAVE-%d] min: %u avg: %lld, max: %u\n", i, from_min[i], from_sum[i], from_max[i]);
-	    }
-    }
-#endif
-
 }
 
-#ifdef COUNT_CYCLES
+#ifdef MEASURE_BREAKDOWN
 void sysregs_restore(struct vcpu *n)
 {
 	p2m_restore_state(n);
@@ -297,23 +326,19 @@ void sysregs_restore(struct vcpu *n)
 }
 #endif
 
+void cp15_restore(struct vcpu *n) {
+    WRITE_SYSREG(n->arch.csselr, CSSELR_EL1);
+}
+
+void vtimer_restore(struct vcpu *n) {
+    WRITE_SYSREG32(n->arch.cntkctl, CNTKCTL_EL1);
+    virt_timer_restore(n);
+}
 
 static void ctxt_switch_to(struct vcpu *n)
 {
-#ifdef COUNT_CYCLES
+#ifdef MEASURE_BREAKDOWN
 	unsigned long long cc_start = 0, cc_end = 0;
-	static uint32_t to_cnt = 0;
-	static uint32_t to_min[BRK_MAX] = {0};
-	static uint32_t to_max[BRK_MAX] = {0};
-	static unsigned long long to_sum[BRK_MAX] = {0};
-	static uint32_t iteration = 10*1000;
-
-	static unsigned long long start_time = 0;
-	static unsigned long long end_time = 0;
-	unsigned long long cc_before[BRK_MAX]= {0}, cc_after[BRK_MAX]={0};
-	unsigned long long diff = 0;
-	if (start_time ==0)
-		GET_CYCLES(&start_time);
 #endif
 	
 
@@ -327,20 +352,22 @@ static void ctxt_switch_to(struct vcpu *n)
     WRITE_SYSREG(n->arch.vmpidr, VMPIDR_EL2);
 
    /* VGIC */
- #ifdef COUNT_CYCLES
+#ifdef MEASURE_BREAKDOWN
     MEASURE_CC(gic_restore_state);
- #else
+#else
     gic_restore_state(n);
- #endif
+#endif
 
     /* VFP */
-	GET_CYCLES(&cc_before[VFP]);
+#ifdef MEASURE_BREAKDOWN
+    MEASURE_CC(vfp_restore_state);
+#else
     vfp_restore_state(n);
-	GET_CYCLES(&cc_after[VFP]);
+#endif
  
     /* XXX MPU */
 
-#ifdef COUNT_CYCLES
+#ifdef MEASURE_BREAKDOWN
 	MEASURE_CC(sysregs_restore);
 #else
     p2m_restore_state(n);
@@ -397,47 +424,24 @@ static void ctxt_switch_to(struct vcpu *n)
     WRITE_CP32(n->arch.jmcr, JMCR);
 #endif
     isb();
-#endif
+#endif /* MEASURE_BREAKDOWN */
 
     /* CP 15 */
-	GET_CYCLES(&cc_before[CP15]);
+#ifdef MEASURE_BREAKDOWN
+    MEASURE_CC(cp15_restore);
+#else
     WRITE_SYSREG(n->arch.csselr, CSSELR_EL1);
-	GET_CYCLES(&cc_after[CP15]);
     isb();
+#endif
 
     /* This is could trigger an hardware interrupt from the virtual
      * timer. The interrupt needs to be injected into the guest. */
-    GET_CYCLES(&cc_before[TIMER]);
+#ifdef MEASURE_BREAKDOWN
+     MEASURE_CC(vtimer_restore);
+#else
     WRITE_SYSREG32(n->arch.cntkctl, CNTKCTL_EL1);
     virt_timer_restore(n);
-    GET_CYCLES(&cc_after[TIMER]);
-
-#ifdef COUNT_CYCLES
-    if (cc_after[CP15] == 0 || cc_before[CP15] == 0)
-	    return;
-    if (to_cnt == iteration)
-	    return;
-    to_cnt++;
-
-    for (int i = VGIC; i < BRK_MAX; i++) {
-	    diff = cc_after[i] - cc_before[i];
-	    if (to_min[i] ==0 || to_min[i] > diff)
-		    to_min[i] = diff;
-	    if (to_max[i] < diff)
-		    to_max[i] = diff;
-
-	    to_sum[i] += diff;
-	    if (to_cnt == iteration) {
-		    to_sum[i] /= iteration;
-		    GET_CYCLES(&end_time);
-		    printk("[FINAL RESTORE-%d] min: %u avg: %lld, max: %u, start: %llu, end: %llu\n", i, to_min[i], to_sum[i], to_max[i], start_time, end_time);
-	    } else if (to_cnt % 1000 == 0){
-		    printk("[RESTORE-%d] min: %u avg: %lld, max: %u\n", i, to_min[i], to_sum[i], to_max[i]);
-	    }
-    }
 #endif
-
-
 }
 
 /* Update per-VCPU guest runstate shared memory area (if registered). */
