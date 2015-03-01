@@ -376,6 +376,10 @@ static void ctxt_switch_to(struct vcpu *n)
     if ( is_idle_vcpu(n) )
         return;
 
+#ifdef MEASURE_CTX
+	cc_start = read_cc();
+#endif
+
 #ifdef MEASURE_BREAKDOWN
     MEASURE_CC(vpid_restore);
 #else
@@ -391,21 +395,12 @@ static void ctxt_switch_to(struct vcpu *n)
     gic_restore_state(n);
 #endif
 
-#ifdef MEASURE_CTX
-	cc_start = read_cc();
-#endif
     /* VFP */
 #ifdef MEASURE_BREAKDOWN
     MEASURE_CC(vfp_restore_state);
 #else
     vfp_restore_state(n);
 #endif
-#ifdef MEASURE_CTX
-	cc_end = read_cc();
-	if (cc_start!=0 && measure_breakdown == true)
-		printk("[%s]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", __func__, cc_start, cc_end, cc_end-cc_start);
-#endif
-
 
     /* XXX MPU */
 
@@ -484,6 +479,14 @@ static void ctxt_switch_to(struct vcpu *n)
     WRITE_SYSREG32(n->arch.cntkctl, CNTKCTL_EL1);
     virt_timer_restore(n);
 #endif
+
+#ifdef MEASURE_CTX
+	cc_end = read_cc();
+	if (cc_start!=0 && measure_breakdown == true)
+		printk("[%s]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", __func__, cc_start, cc_end, cc_end-cc_start);
+#endif
+
+
 }
 
 /* Update per-VCPU guest runstate shared memory area (if registered). */
