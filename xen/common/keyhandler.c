@@ -24,6 +24,7 @@
 static struct keyhandler *key_table[256];
 static unsigned char keypress_key;
 static bool_t alt_key_handling;
+bool_t measure_breakdown;
 
 char keyhandler_scratch[1024];
 
@@ -526,6 +527,20 @@ static struct keyhandler do_debug_key_keyhandler = {
     .desc = "trap to xendbg"
 };
 
+static void do_toggle_measure(unsigned char key, struct cpu_user_regs *regs)
+{
+	printk("Toogle measure: %d\n", !measure_breakdown);
+	measure_breakdown = !measure_breakdown;
+
+}
+
+static struct keyhandler toggle_measure_key_handler = {
+    .irq_callback = 1,
+    .u.irq_fn = do_toggle_measure,
+    .desc = "toggle breakdown measure"
+};
+
+
 static void do_toggle_alt_key(unsigned char key, struct cpu_user_regs *regs)
 {
     alt_key_handling = !alt_key_handling;
@@ -547,6 +562,8 @@ void __init initialize_keytable(void)
         printk(XENLOG_INFO "Defaulting to alternative key handling; "
                "send 'A' to switch to normal mode.\n");
     }
+    measure_breakdown = false;
+    
     register_keyhandler('A', &toggle_alt_keyhandler);
     register_keyhandler('d', &dump_registers_keyhandler);
     register_keyhandler('h', &show_handlers_keyhandler);
@@ -557,6 +574,7 @@ void __init initialize_keytable(void)
     register_keyhandler('0', &dump_hwdom_registers_keyhandler);
     register_keyhandler('%', &do_debug_key_keyhandler);
     register_keyhandler('*', &run_all_keyhandlers_keyhandler);
+    register_keyhandler('M', &toggle_measure_key_handler);
 
 #ifdef PERF_COUNTERS
     register_keyhandler('p', &perfc_printall_keyhandler);
