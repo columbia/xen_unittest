@@ -61,7 +61,7 @@ void idle_loop(void)
     }
 }
 
-//#define MEASURE_BREAKDOWN
+#define MEASURE_BREAKDOWN
 #ifdef MEASURE_BREAKDOWN
 #ifdef CONFIG_ARM64
 typedef unsigned long long ccount_t;
@@ -69,6 +69,7 @@ typedef unsigned long long ccount_t;
 typedef unsigned long ccount_t;
 #endif
 
+extern bool_t measure_breakdown;
 #define FN2(X) #X
 #define FN(X) FN2(X)
 #define MEASURE_CC(name)                        \
@@ -88,7 +89,7 @@ typedef unsigned long ccount_t;
 			:[vcpup] "r" (n)			\
 			:					\
 			"x0", "x19", "x20");			\
-	if (cc_end != 0)	\
+	if (cc_end!=0 && measure_breakdown == true)	\
 		printk("[" FN(name) "]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", cc_start, cc_end, cc_end-cc_start);     \
 
 #endif
