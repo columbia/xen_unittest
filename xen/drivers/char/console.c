@@ -67,7 +67,8 @@ custom_param("console_timestamps", parse_console_timestamps);
 static uint32_t __initdata opt_conring_size;
 size_param("conring_size", opt_conring_size);
 
-#define _CONRING_SIZE 16384
+//#define _CONRING_SIZE 16384
+#define _CONRING_SIZE 1024*1024
 #define CONRING_IDX_MASK(i) ((i)&(conring_size-1))
 static char __initdata _conring[_CONRING_SIZE];
 static char *__read_mostly conring = _conring;
