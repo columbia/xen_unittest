@@ -16,10 +16,6 @@ fi
 
 if [[ "$ARCH" == "arm64" ]]; then
 	CROSS_COMPILER=aarch64-linux-gnu-
-	'''
-else if [[ "$ARCH" == "arm32" ]]; then
-	CROSS_COMPILER=arm-linux-gnueabihf-
-	'''
 fi
 
 make dist-xen XEN_TARGET_ARCH=$ARCH CROSS_COMPILE=$CROSS_COMPILER
