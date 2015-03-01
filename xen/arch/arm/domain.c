@@ -61,13 +61,26 @@ void idle_loop(void)
     }
 }
 
+/* For whole context switch measurement */
+//#define MEASURE_CTX
+/* For breakdown measurement*/
 #define MEASURE_BREAKDOWN
-#ifdef MEASURE_BREAKDOWN
+#if defined(MEASURE_BREAKDOWN) || defined(MEASURE_CTX)
 #ifdef CONFIG_ARM64
 typedef unsigned long long ccount_t;
 #else
 typedef unsigned long ccount_t;
 #endif
+
+static inline unsigned long read_cc(void)
+{
+	unsigned long cc;
+
+	isb();
+	asm volatile("mrs %0, PMCCNTR_EL0" : "=r" (cc) ::);
+	isb();
+	return cc;
+}
 
 extern bool_t measure_breakdown;
 #define FN2(X) #X
@@ -164,8 +177,10 @@ void sysregs_save(struct vcpu *p)
 
 static void ctxt_switch_from(struct vcpu *p)
 {
-#ifdef MEASURE_BREAKDOWN
+#if defined(MEASURE_BREAKDOWN) || defined(MEASURE_CTX)
 	unsigned long long cc_start = 0, cc_end = 0;
+#endif
+#ifdef MEASURE_BREAKDOWN
 	struct vcpu *n=p;
 #endif
 
@@ -174,6 +189,9 @@ static void ctxt_switch_from(struct vcpu *p)
      */
     if ( is_idle_vcpu(p) )
         goto end_context;
+#ifdef MEASURE_CTX
+	cc_start = read_cc();
+#endif
 
     /* CP 15 */
 #ifdef MEASURE_BREAKDOWN
@@ -265,6 +283,11 @@ static void ctxt_switch_from(struct vcpu *p)
 
 end_context:
     context_saved(p);
+#ifdef MEASURE_CTX
+	cc_end = read_cc();
+	if (cc_start!=0 && measure_breakdown == true)
+		printk("[%s]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", __func__, cc_start, cc_end, cc_end-cc_start);
+#endif
 }
 
 #ifdef MEASURE_BREAKDOWN
@@ -336,12 +359,16 @@ void vtimer_restore(struct vcpu *n) {
     virt_timer_restore(n);
 }
 
+void vpid_restore(struct vcpu*n) {
+    WRITE_SYSREG32(n->domain->arch.vpidr, VPIDR_EL2);
+    WRITE_SYSREG(n->arch.vmpidr, VMPIDR_EL2);
+}
+
 static void ctxt_switch_to(struct vcpu *n)
 {
-#ifdef MEASURE_BREAKDOWN
+#if defined(MEASURE_BREAKDOWN) || defined(MEASURE_CTX)
 	unsigned long long cc_start = 0, cc_end = 0;
 #endif
-	
 
     /* When the idle VCPU is running, Xen will always stay in hypervisor
      * mode. Therefore we don't need to restore the context of an idle VCPU.
@@ -349,8 +376,13 @@ static void ctxt_switch_to(struct vcpu *n)
     if ( is_idle_vcpu(n) )
         return;
 
+#ifdef MEASURE_BREAKDOWN
+    MEASURE_CC(vpid_restore);
+#else
     WRITE_SYSREG32(n->domain->arch.vpidr, VPIDR_EL2);
     WRITE_SYSREG(n->arch.vmpidr, VMPIDR_EL2);
+#endif
+
 
    /* VGIC */
 #ifdef MEASURE_BREAKDOWN
@@ -359,13 +391,22 @@ static void ctxt_switch_to(struct vcpu *n)
     gic_restore_state(n);
 #endif
 
+#ifdef MEASURE_CTX
+	cc_start = read_cc();
+#endif
     /* VFP */
 #ifdef MEASURE_BREAKDOWN
     MEASURE_CC(vfp_restore_state);
 #else
     vfp_restore_state(n);
 #endif
- 
+#ifdef MEASURE_CTX
+	cc_end = read_cc();
+	if (cc_start!=0 && measure_breakdown == true)
+		printk("[%s]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", __func__, cc_start, cc_end, cc_end-cc_start);
+#endif
+
+
     /* XXX MPU */
 
 #ifdef MEASURE_BREAKDOWN
