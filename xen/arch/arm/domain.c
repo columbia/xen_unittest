@@ -65,8 +65,9 @@ void idle_loop(void)
 //#define MEASURE_CTX
 /* For breakdown measurement*/
 #define MEASURE_BREAKDOWN
+
 #if defined(MEASURE_BREAKDOWN) || defined(MEASURE_CTX)
-#ifdef CONFIG_ARM64
+#ifdef CONFIG_ARM_64
 typedef unsigned long long ccount_t;
 #else
 typedef unsigned long ccount_t;
@@ -74,10 +75,14 @@ typedef unsigned long ccount_t;
 
 static inline unsigned long read_cc(void)
 {
-	unsigned long cc;
+	unsigned long cc=0;
 
 	isb();
+#ifdef CONFIG_ARM_64
 	asm volatile("mrs %0, PMCCNTR_EL0" : "=r" (cc) ::);
+#else
+	asm volatile("mrc p15, 0, %[reg], c9, c13, 0": [reg] "=r" (cc));
+#endif
 	isb();
 	return cc;
 }
@@ -85,6 +90,8 @@ static inline unsigned long read_cc(void)
 extern bool_t measure_breakdown;
 #define FN2(X) #X
 #define FN(X) FN2(X)
+
+#ifdef CONFIG_ARM_64
 #define MEASURE_CC(name)                        \
 	asm volatile(						\
 			"isb\n\t"				\
@@ -104,6 +111,30 @@ extern bool_t measure_breakdown;
 			"x0", "x19", "x20");			\
 	if (cc_end!=0 && measure_breakdown == true)	\
 		printk("[" FN(name) "]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", cc_start, cc_end, cc_end-cc_start);     \
+
+#else
+
+#define MEASURE_CC(name) \
+	asm volatile(						\
+			"isb\n\t"				\
+			"mrc p15, 0, r4, c9, c13, 0\n\t"	\
+			"isb\n\t"				\
+			"mov r0, %[vcpup]\n\t"			\
+			"bl " FN(name) "\n\t"			\
+			"isb\n\t"				\
+			"mrc p15, 0, r5, c9, c13, 0\n\t"	\
+			"isb\n\t"				\
+			"mov %[start], r4\n\t"			\
+			"mov %[end], r5\n\t"			\
+			:[start] "=r" (cc_start),		\
+			 [end] "=r" (cc_end)			\
+			:[vcpup] "r" (n)			\
+			:					\
+			"r0", "r4", "r5");			\
+	if (cc_end!=0 && measure_breakdown == true)	\
+		printk("[" FN(name) "]\tstart:\t%llu\tend:\t%llu\tdiff:\t%llu\n", cc_start, cc_end, cc_end-cc_start);     \
+
+#endif /* CONFIG_ARM_64 */
 
 #endif
 
@@ -196,6 +227,7 @@ static void ctxt_switch_from(struct vcpu *p)
 
     /* CP 15 */
 #ifdef MEASURE_BREAKDOWN
+    p = n; /* just to avoid unused variable n */
     MEASURE_CC(cp15_save);
 #else
     p->arch.csselr = READ_SYSREG(CSSELR_EL1);
