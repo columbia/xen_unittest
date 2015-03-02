@@ -112,6 +112,12 @@ void cp15_save(struct vcpu *p)
     p->arch.csselr = READ_SYSREG(CSSELR_EL1);
 }
 
+void vtimer_save(struct vcpu *p)
+{
+    /* Arch timer */
+    p->arch.cntkctl = READ_SYSREG32(CNTKCTL_EL1);
+    virt_timer_save(p);
+}
 void sysregs_save(struct vcpu *p)
 {
     p2m_save_state(p);
@@ -122,11 +128,6 @@ void sysregs_save(struct vcpu *p)
     p->arch.tpidr_el0 = READ_SYSREG(TPIDR_EL0);
     p->arch.tpidrro_el0 = READ_SYSREG(TPIDRRO_EL0);
     p->arch.tpidr_el1 = READ_SYSREG(TPIDR_EL1);
-
-	/* TODO: timer is included in sysress */
-    /* Arch timer */
-    p->arch.cntkctl = READ_SYSREG32(CNTKCTL_EL1);
-    virt_timer_save(p);
 
     if ( is_32bit_domain(p->domain) && cpu_has_thumbee )
     {
@@ -202,6 +203,7 @@ static void ctxt_switch_from(struct vcpu *p)
 
 #ifdef MEASURE_BREAKDOWN
     MEASURE_CC(sysregs_save);
+    MEASURE_CC(vtimer_save);
 #else
     p2m_save_state(p);
     /* Control Registers */
@@ -213,7 +215,6 @@ static void ctxt_switch_from(struct vcpu *p)
     p->arch.tpidr_el1 = READ_SYSREG(TPIDR_EL1);
 
     /* Arch timer */
-    /* TODO: timer is included in sysregs */
     p->arch.cntkctl = READ_SYSREG32(CNTKCTL_EL1);
     virt_timer_save(p);
 
