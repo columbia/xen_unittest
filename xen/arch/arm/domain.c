@@ -64,7 +64,7 @@ void idle_loop(void)
 /* For whole context switch measurement */
 //#define MEASURE_CTX
 /* For breakdown measurement*/
-#define MEASURE_BREAKDOWN
+//#define MEASURE_BREAKDOWN
 #if defined(MEASURE_BREAKDOWN) || defined(MEASURE_CTX)
 #ifdef CONFIG_ARM64
 typedef unsigned long long ccount_t;

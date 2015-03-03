@@ -335,3 +335,6 @@ docs/txt/man/*.txt
 docs/figs/*.png
 
 ./.localconf
+.localconf
+uXen
+xen/uXen

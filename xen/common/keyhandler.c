@@ -527,6 +527,21 @@ static struct keyhandler do_debug_key_keyhandler = {
     .desc = "trap to xendbg"
 };
 
+extern void enable_ccounts(void);
+static void do_enable_cc(unsigned char key, struct cpu_user_regs *regs)
+{
+	printk("Enable CC in CPU %d\n", smp_processor_id());
+	enable_ccounts();
+
+}
+
+static struct keyhandler enable_cc_key_handler = {
+    .irq_callback = 1,
+    .u.irq_fn = do_enable_cc,
+    .desc = "Enable cycle counter"
+};
+
+
 static void do_toggle_measure(unsigned char key, struct cpu_user_regs *regs)
 {
 	printk("Toogle measure: %d\n", !measure_breakdown);
@@ -575,6 +590,7 @@ void __init initialize_keytable(void)
     register_keyhandler('%', &do_debug_key_keyhandler);
     register_keyhandler('*', &run_all_keyhandlers_keyhandler);
     register_keyhandler('M', &toggle_measure_key_handler);
+    register_keyhandler('C', &enable_cc_key_handler);
 
 #ifdef PERF_COUNTERS
     register_keyhandler('p', &perfc_printall_keyhandler);

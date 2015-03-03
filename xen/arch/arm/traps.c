@@ -2007,9 +2007,10 @@ static void enter_hypervisor_head(struct cpu_user_regs *regs)
         gic_clear_lrs(current);
 }
 
-static void enable_ccounts(void)
+void enable_ccounts(void)
 {
 	uint32_t cc_32=11;
+	printk("======= enable PMU cycle count at CPU %d========\n",smp_processor_id());
 #ifdef CONFIG_ARM_64
 	asm volatile(
 		"mrs %0, PMCR_EL0\n"
