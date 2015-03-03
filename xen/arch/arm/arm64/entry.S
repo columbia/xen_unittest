@@ -149,7 +149,8 @@ lr      .req    x30             // link register
 #define BAD_IRQ         1
 #define BAD_FIQ         2
 #define BAD_ERROR       3
-//#define BREAKDOWN
+//#define HVC_BREAKDOWN
+//#define TRAP_INOUT
 
         .macro  invalid, reason
         mov     x0, sp
@@ -188,12 +189,10 @@ hyp_irq:
         exit    hyp=1
 
 guest_sync:
-#ifdef BREAKDOWN
+#if defined (TRAP_INOUT) || (HVC_BREAKDOWN)
 	cmp x0, #0x10000
 	bne guest_sync_normal
 	mrs x1,PMCCNTR_EL0
-        entry   hyp=0, compat=0
-        exit    hyp=0, compat=0
 	eret
 
 guest_sync_normal:
@@ -246,7 +245,7 @@ ENTRY(return_to_new_vcpu64)
 
 return_from_trap:
 
-#ifdef BREAKDOWN
+#ifdef HVC_BREAKDOWN
 	ldr	x7, [sp, #32]
 	cmp x7, #0x10000
 	bne rft_normal 
