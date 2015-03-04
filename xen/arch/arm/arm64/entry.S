@@ -4,7 +4,7 @@
 #include <public/xen.h>
 
 //#define TRAP_INOUT
-#define BREAKDOWN
+//#define BREAKDOWN
 
 
 /*
