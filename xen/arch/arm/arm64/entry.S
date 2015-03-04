@@ -3,6 +3,10 @@
 #include <asm/regs.h>
 #include <public/xen.h>
 
+//#define TRAP_INOUT
+#define BREAKDOWN
+
+
 /*
  * Register aliases.
  */
@@ -127,12 +131,17 @@ lr      .req    x30             // link register
         stp     x22, x23, [sp, #UREGS_PC]
 
         .endm
-
+ 
         .macro  exit, hyp, compat
 
         .if \hyp == 0         /* Guest mode */
 
         bl      leave_hypervisor_tail /* Disables interrupts on return */
+#ifdef BREAKDOWN
+	isb
+	mrs x19,PMCCNTR_EL0
+	isb
+#endif
         exit_guest \compat
 
         .endif
@@ -149,8 +158,6 @@ lr      .req    x30             // link register
 #define BAD_IRQ         1
 #define BAD_FIQ         2
 #define BAD_ERROR       3
-//#define HVC_BREAKDOWN
-//#define TRAP_INOUT
 
         .macro  invalid, reason
         mov     x0, sp
@@ -189,14 +196,46 @@ hyp_irq:
         exit    hyp=1
 
 guest_sync:
-#if defined (TRAP_INOUT) || (HVC_BREAKDOWN)
+#ifdef TRAP_INOUT
 	cmp x0, #0x10000
 	bne guest_sync_normal
+	isb
 	mrs x1,PMCCNTR_EL0
+	isb
 	eret
 
 guest_sync_normal:
 #endif
+
+#ifdef BREAKDOWN
+	cmp x0, #0x10000
+	bne guest_sync_normal
+	isb
+	mrs x1,PMCCNTR_EL0
+	isb
+
+        entry   hyp=0, compat=0
+
+	isb
+	mrs x7,PMCCNTR_EL0
+	isb
+        str     x7, [sp, #16]
+
+        msr     daifclr, #2
+        mov     x0, sp
+        bl      do_trap_hypervisor
+
+	isb
+	mrs x7,PMCCNTR_EL0
+	isb
+        str     x7, [sp, #40]
+
+        exit    hyp=0, compat=0
+	eret
+
+guest_sync_normal:
+#endif
+
         entry   hyp=0, compat=0
         msr     daifclr, #2
         mov     x0, sp
@@ -244,15 +283,14 @@ ENTRY(return_to_new_vcpu64)
         exit    hyp=0, compat=0
 
 return_from_trap:
-
-#ifdef HVC_BREAKDOWN
-	ldr	x7, [sp, #32]
+#ifdef BREAKDOWN
+	ldr	x7, [sp]
 	cmp x7, #0x10000
-	bne rft_normal 
-	mrs x7,PMCCNTR_EL0
-        str     x7, [sp, #32]
-rft_normal:
+	bne rtf_entry
+        str     x19, [sp, #24]
+rtf_entry:
 #endif
+
         msr     daifset, #2 /* Mask interrupts */
         ldp     x21, x22, [sp, #UREGS_PC]       // load ELR, SPSR
 
@@ -277,6 +315,17 @@ rft_normal:
         pop     x28, x29
 
         ldr     lr, [sp], #(UREGS_SPSR_el1 - UREGS_LR) /* CPSR, PC, SP, LR */
+
+#ifdef BREAKDOWN
+	cmp x0, #0x10000
+	bne rtf_exit
+	isb
+	mrs x4,PMCCNTR_EL0
+	isb
+rtf_exit:
+#endif
+
+
         eret
 
 /*
