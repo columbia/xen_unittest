@@ -39,6 +39,7 @@
 #include <asm/psci.h>
 #include <asm/mmio.h>
 #include <asm/cpufeature.h>
+#include <asm/stat.h>
 
 #include "decode.h"
 #include "vtimer.h"
@@ -2018,6 +2019,16 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
      * correctly (See XSA-102). Until that is resolved we treat any
      * trap from 32-bit userspace on 64-bit kernel as undefined.
      */
+    if (regs->x0 == HVC_EVT_START)
+    {
+        xen_stat = 1;
+        return;
+    }
+    else if (regs->x0 == HVC_EVT_END) 
+    {
+        xen_stat = 0;
+        return;
+    }
     if ( !hyp_mode(regs) && is_64bit_domain(current->domain) &&
          psr_mode_is_32bit(regs->cpsr) )
     {
@@ -2086,6 +2097,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 #endif
         if ( hsr.iss == 0 )
             return do_trap_psci(regs);
+        
         do_trap_hypercall(regs, &regs->x16, hsr.iss);
         break;
     case HSR_EC_SMC64:
