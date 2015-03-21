@@ -27,6 +27,7 @@
 
 #include <asm/gic.h>
 #include <asm/vgic.h>
+#include <asm/stat.h>
 
 static unsigned int local_irqs_type[NR_LOCAL_IRQS];
 static DEFINE_SPINLOCK(local_irqs_type_lock);
@@ -239,7 +240,7 @@ void do_IRQ(struct cpu_user_regs *regs, unsigned int irq, int is_fiq)
 
         spin_lock_irq(&desc->lock);
     }
-
+    updt_irq_cnt_incr(current->domain->domain_id);
     clear_bit(_IRQ_INPROGRESS, &desc->status);
 
 out:

@@ -35,6 +35,7 @@
 
 #include <asm/io.h>
 #include <asm/gic.h>
+#include <asm/stat.h>
 
 /*
  * LR register definitions are GIC v2 specific.
@@ -354,6 +355,7 @@ static void gicv2_send_SGI(enum gic_sgi sgi, enum gic_sgi_mode irqmode,
     unsigned int mask = 0;
     cpumask_t online_mask;
 
+    ipi_cnt_incr(current->domain->domain_id);
     switch ( irqmode )
     {
     case SGI_TARGET_OTHERS:

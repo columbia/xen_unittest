@@ -22,6 +22,7 @@
 #include <xen/sched.h>
 #include <asm/current.h>
 #include <asm/mmio.h>
+#include <asm/stat.h>
 
 int handle_mmio(mmio_info_t *info)
 {
@@ -30,6 +31,7 @@ int handle_mmio(mmio_info_t *info)
     const struct mmio_handler *mmio_handler;
     const struct io_handler *io_handlers = &v->domain->arch.io_handlers;
 
+    mmio_cnt_incr(current->domain->domain_id);
     for ( i = 0; i < io_handlers->num_entries; i++ )
     {
         mmio_handler = &io_handlers->mmio_handlers[i];

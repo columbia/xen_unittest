@@ -7,6 +7,11 @@ struct arm_virt_stat
 {
     unsigned long trap_hyp_cnt;
     unsigned long timer_inj_cnt;
+    unsigned long updt_irq_cnt;
+    unsigned long ipi_cnt;
+    unsigned long wfi_cnt;
+    unsigned long mmio_cnt;
+    unsigned long guest_fault_cnt;
 };
 
 #ifndef XEN_ARM_STAT
@@ -14,6 +19,11 @@ struct arm_virt_stat
 extern struct arm_virt_stat virt_stat;
 extern void trap_hyp_cnt_incr(int dom_id);
 extern void timer_inj_cnt_incr(int dom_id);
+extern void updt_irq_cnt_incr(int dom_id);
+extern void ipi_cnt_incr(int dom_id);
+extern void wfi_cnt_incr(int dom_id);
+extern void mmio_cnt_incr(int dom_id);
+extern void guest_fault_cnt_incr(int dom_id);
 extern void virt_stat_reset(void);
 extern void virt_stat_show(int dom_id);
 #endif
