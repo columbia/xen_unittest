@@ -6,6 +6,7 @@ extern volatile int xen_stat_en;
 struct arm_virt_stat
 {
     unsigned long trap_hyp_cnt;
+    unsigned long trap_irq_cnt;
     unsigned long timer_inj_cnt;
     unsigned long updt_irq_cnt;
     unsigned long ipi_cnt;
@@ -18,6 +19,7 @@ struct arm_virt_stat
 #define XEN_ARM_STAT
 extern struct arm_virt_stat virt_stat;
 extern void trap_hyp_cnt_incr(int dom_id);
+extern void trap_irq_cnt_incr(int dom_id);
 extern void timer_inj_cnt_incr(int dom_id);
 extern void updt_irq_cnt_incr(int dom_id);
 extern void ipi_cnt_incr(int dom_id);

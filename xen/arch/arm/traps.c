@@ -2143,6 +2143,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
+    trap_irq_cnt_incr(current->domain->domain_id);
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 0);
 }
