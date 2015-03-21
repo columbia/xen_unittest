@@ -74,6 +74,7 @@ static int debug_stack_lines = 40;
 integer_param("debug_stack_lines", debug_stack_lines);
 
 volatile int xen_stat_en = 0;
+struct arm_virt_stat virt_stat;
 
 void __cpuinit init_traps(void)
 {
@@ -2023,19 +2024,17 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
     if (regs->x0 == HVC_EVT_START)
     {
         xen_stat_en = 1;
-        virt_stat.trap_cnt = 0;
+        virt_stat_reset();
         return;
     }
     else if (regs->x0 == HVC_EVT_END) 
     {
         xen_stat_en = 0;
-        printk("trap cnt %lu\n", virt_stat.trap_cnt);
+        virt_stat_show(current->domain->domain_id);
         return;
     }
 
-    if (xen_stat_en && current->domain->domain_id != 0)
-        virt_stat.trap_cnt++;
-    
+    trap_hyp_cnt_incr(current->domain->domain_id);
 
     if ( !hyp_mode(regs) && is_64bit_domain(current->domain) &&
          psr_mode_is_32bit(regs->cpsr) )
