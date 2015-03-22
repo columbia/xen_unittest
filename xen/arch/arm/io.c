@@ -31,7 +31,7 @@ int handle_mmio(mmio_info_t *info)
     const struct mmio_handler *mmio_handler;
     const struct io_handler *io_handlers = &v->domain->arch.io_handlers;
 
-    mmio_cnt_incr(current->domain->domain_id);
+    evt_cnt_incr(mmio);
     for ( i = 0; i < io_handlers->num_entries; i++ )
     {
         mmio_handler = &io_handlers->mmio_handlers[i];

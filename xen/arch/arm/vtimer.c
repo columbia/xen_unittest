@@ -38,7 +38,7 @@ static void phys_timer_expired(void *data)
     if ( !(t->ctl & CNTx_CTL_MASK) )
     {
         vgic_vcpu_inject_irq(t->v, t->irq);
-        timer_inj_cnt_incr(current->domain->domain_id);
+        evt_cnt_incr(timer_inj);
     }
 }
 
@@ -47,7 +47,7 @@ static void virt_timer_expired(void *data)
     struct vtimer *t = data;
     t->ctl |= CNTx_CTL_MASK;
     vgic_vcpu_inject_irq(t->v, t->irq);
-    timer_inj_cnt_incr(current->domain->domain_id);
+    evt_cnt_incr(timer_inj);
 }
 
 int domain_vtimer_init(struct domain *d)

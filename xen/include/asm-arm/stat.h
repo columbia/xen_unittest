@@ -1,3 +1,5 @@
+#include <xen/sched.h>
+
 #define HVC_EVT_START		0x4b000040
 #define HVC_EVT_END		0x4b000050
 
@@ -19,17 +21,22 @@ struct arm_virt_stat
 
 #ifndef XEN_ARM_STAT
 #define XEN_ARM_STAT
+
+void inline __evt_cnt_incr(unsigned long *cnt)
+{
+    int dom_id = current->domain->domain_id;
+
+    if (!cnt)
+        return;
+
+    if (xen_stat_en && dom_id != 0)
+        (*cnt)++;
+    return;
+}
+#define evt_cnt_incr(_evt) __evt_cnt_incr( \
+        &virt_stat._evt ## _cnt)
+
 extern struct arm_virt_stat virt_stat;
-extern void trap_hyp_cnt_incr(int dom_id);
-extern void trap_irq_cnt_incr(int dom_id);
-extern void trap_fiq_cnt_incr(int dom_id);
-extern void timer_inj_cnt_incr(int dom_id);
-extern void ipi_cnt_incr(int dom_id);
-extern void do_irq_cnt_incr(int dom_id);
-extern void do_sgi_cnt_incr(int dom_id);
-extern void wfi_cnt_incr(int dom_id);
-extern void mmio_cnt_incr(int dom_id);
-extern void guest_fault_cnt_incr(int dom_id);
 extern void virt_stat_reset(void);
 extern void virt_stat_show(int dom_id);
 #endif

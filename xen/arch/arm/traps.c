@@ -2034,7 +2034,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         return;
     }
 
-    trap_hyp_cnt_incr(current->domain->domain_id);
+    evt_cnt_incr(trap_hyp);
 
     if ( !hyp_mode(regs) && is_64bit_domain(current->domain) &&
          psr_mode_is_32bit(regs->cpsr) )
@@ -2050,7 +2050,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
             advance_pc(regs, hsr);
             return;
         }
-        wfi_cnt_incr(current->domain->domain_id);
+        evt_cnt_incr(wfi);
         if ( hsr.wfi_wfe.ti ) {
             /* Yield the VCPU for WFE */
             vcpu_yield();
@@ -2119,11 +2119,11 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 #endif
 
     case HSR_EC_INSTR_ABORT_LOWER_EL:
-        guest_fault_cnt_incr(current->domain->domain_id);
+        evt_cnt_incr(guest_fault);
         do_trap_instr_abort_guest(regs, hsr);
         break;
     case HSR_EC_DATA_ABORT_LOWER_EL:
-        guest_fault_cnt_incr(current->domain->domain_id);
+        evt_cnt_incr(guest_fault);
         do_trap_data_abort_guest(regs, hsr);
         break;
 
@@ -2143,14 +2143,14 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
-    trap_irq_cnt_incr(current->domain->domain_id);
+    evt_cnt_incr(trap_irq);
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 0);
 }
 
 asmlinkage void do_trap_fiq(struct cpu_user_regs *regs)
 {
-    trap_fiq_cnt_incr(current->domain->domain_id);
+    evt_cnt_incr(trap_fiq);
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 1);
 }

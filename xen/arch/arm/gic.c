@@ -566,20 +566,19 @@ void gic_interrupt(struct cpu_user_regs *regs, int is_fiq)
     unsigned int irq;
 
     do  {
-        //trap_irq_cnt_incr(current->domain->domain_id);
         /* Reading IRQ will ACK it */
         irq = gic_hw_ops->read_irq();
 
         if ( likely(irq >= 16 && irq < 1021) )
         {
             local_irq_enable();
-            do_irq_cnt_incr(current->domain->domain_id);
+            evt_cnt_incr(do_irq);
             do_IRQ(regs, irq, is_fiq);
             local_irq_disable();
         }
         else if (unlikely(irq < 16))
         {
-            do_sgi_cnt_incr(current->domain->domain_id);
+            evt_cnt_incr(do_sgi);
             do_sgi(regs, irq);
         }
         else
