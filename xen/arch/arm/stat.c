@@ -9,6 +9,7 @@ void virt_stat_reset(void)
     virt_stat.timer_inj_cnt = 0;
     virt_stat.do_irq_cnt = 0;
     virt_stat.do_sgi_cnt = 0;
+    virt_stat.dispatch_sgi_cnt = 0;
     virt_stat.ipi_cnt = 0;
     virt_stat.wfi_cnt = 0;
     virt_stat.mmio_cnt = 0;
@@ -27,6 +28,7 @@ void virt_stat_show(int dom_id)
     printk("dom %d do_IRQ cnt %lu\n", dom_id, virt_stat.do_irq_cnt);
     printk("dom %d timer injection cnt %lu\n", dom_id, virt_stat.timer_inj_cnt);
     printk("dom %d do_SGI cnt %lu\n", dom_id, virt_stat.do_sgi_cnt);
+    printk("dom %d dispatch_SGI cnt %lu\n", dom_id, virt_stat.dispatch_sgi_cnt);
     printk("dom %d ipi cnt %lu\n", dom_id, virt_stat.ipi_cnt);
     printk("----------------------\n"); 
     printk("dom %d trap hyp cnt %lu\n", dom_id, virt_stat.trap_hyp_cnt);

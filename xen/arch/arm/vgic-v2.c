@@ -27,6 +27,7 @@
 
 #include <asm/current.h>
 #include <asm/device.h>
+#include <asm/stat.h>
 
 #include <asm/mmio.h>
 #include <asm/gic.h>
@@ -238,6 +239,7 @@ static int vgic_v2_to_sgi(struct vcpu *v, register_t sgir)
     enum gic_sgi_mode sgi_mode;
     unsigned long vcpu_mask = 0;
 
+    evt_cnt_incr(dispatch_sgi);
     irqmode = (sgir & GICD_SGI_TARGET_LIST_MASK) >> GICD_SGI_TARGET_LIST_SHIFT;
     virq = (sgir & GICD_SGI_INTID_MASK);
     vcpu_mask = (sgir & GICD_SGI_TARGET_MASK) >> GICD_SGI_TARGET_SHIFT;

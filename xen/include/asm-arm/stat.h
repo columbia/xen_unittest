@@ -13,6 +13,7 @@ struct arm_virt_stat
     unsigned long timer_inj_cnt;
     unsigned long do_irq_cnt;
     unsigned long do_sgi_cnt;
+    unsigned long dispatch_sgi_cnt;
     unsigned long ipi_cnt;
     unsigned long wfi_cnt;
     unsigned long mmio_cnt;
