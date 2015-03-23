@@ -2050,12 +2050,13 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
             advance_pc(regs, hsr);
             return;
         }
-        evt_cnt_incr(wfi);
         if ( hsr.wfi_wfe.ti ) {
             /* Yield the VCPU for WFE */
+            evt_cnt_incr(wfe);
             vcpu_yield();
         } else {
             /* Block the VCPU for WFI */
+            evt_cnt_incr(wfi);
             vcpu_block_unless_event_pending(current);
         }
         advance_pc(regs, hsr);

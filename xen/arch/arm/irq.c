@@ -184,6 +184,11 @@ void do_IRQ(struct cpu_user_regs *regs, unsigned int irq, int is_fiq)
 
     /* TODO: this_cpu(irq_count)++; */
 
+    if (irq < 32)
+        evt_cnt_incr(ppis);
+    else
+        evt_cnt_incr(spis);
+
     irq_enter();
 
     spin_lock(&desc->lock);
@@ -200,6 +205,7 @@ void do_IRQ(struct cpu_user_regs *regs, unsigned int irq, int is_fiq)
     {
         struct domain *d = irq_get_domain(desc);
 
+        evt_cnt_incr(guest_irqs);
         desc->handler->end(desc);
 
         set_bit(_IRQ_INPROGRESS, &desc->status);

@@ -16,8 +16,12 @@ struct arm_virt_stat
     unsigned long dispatch_sgi_cnt;
     unsigned long ipi_cnt;
     unsigned long wfi_cnt;
+    unsigned long wfe_cnt;
     unsigned long mmio_cnt;
     unsigned long guest_fault_cnt;
+    unsigned long guest_irqs_cnt;
+    unsigned long ppis_cnt;
+    unsigned long spis_cnt;
 };
 
 #ifndef XEN_ARM_STAT
@@ -31,6 +35,7 @@ void inline __evt_cnt_incr(unsigned long *cnt)
         return;
 
     if (xen_stat_en && dom_id != 0)
+    //if (xen_stat_en)
         (*cnt)++;
     return;
 }
