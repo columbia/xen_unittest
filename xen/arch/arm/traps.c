@@ -2013,6 +2013,9 @@ void enable_ccounts(void)
 	printk("======= enable PMU cycle count at CPU %d========\n",smp_processor_id());
 #ifdef CONFIG_ARM_64
 	asm volatile(
+		"mrs %0, PMINTENCLR_EL1\n"
+		"orr %0, %0, #(1<< 31)\n"
+		"msr PMINTENCLR_EL1, %0\n"
 		"mrs %0, PMCR_EL0\n"
 		"orr %0, %0, #1\n"
 		"orr %0, %0, #(1 << 2)\n"
