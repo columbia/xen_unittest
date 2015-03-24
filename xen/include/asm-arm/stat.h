@@ -29,13 +29,13 @@ struct arm_virt_stat
 
 void inline __evt_cnt_incr(unsigned long *cnt)
 {
-    int dom_id = current->domain->domain_id;
+    //int dom_id = current->domain->domain_id;
 
     if (!cnt)
         return;
 
-    if (xen_stat_en && dom_id != 0)
-    //if (xen_stat_en)
+    //if (xen_stat_en && dom_id != 0)
+    if (xen_stat_en)
         (*cnt)++;
     return;
 }

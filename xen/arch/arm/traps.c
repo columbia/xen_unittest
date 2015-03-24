@@ -2023,7 +2023,6 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
      */
     if (regs->x0 == HVC_EVT_START)
     {
-        xen_stat_en = 1;
         virt_stat_init();
         return;
     }
