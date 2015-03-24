@@ -74,7 +74,7 @@ static int debug_stack_lines = 40;
 integer_param("debug_stack_lines", debug_stack_lines);
 
 volatile int xen_stat_en = 0;
-struct arm_virt_stat virt_stat;
+struct arm_virt_stat *virt_stat = NULL;
 
 void __cpuinit init_traps(void)
 {

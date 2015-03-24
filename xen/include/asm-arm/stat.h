@@ -40,9 +40,9 @@ void inline __evt_cnt_incr(unsigned long *cnt)
     return;
 }
 #define evt_cnt_incr(_evt) __evt_cnt_incr( \
-        &virt_stat._evt ## _cnt)
+        &virt_stat->_evt ## _cnt)
 
-extern struct arm_virt_stat virt_stat;
+extern struct arm_virt_stat *virt_stat;
 extern void virt_stat_reset(void);
 extern void virt_stat_show(int dom_id);
 #endif
