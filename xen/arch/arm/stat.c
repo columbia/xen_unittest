@@ -23,6 +23,8 @@ void virt_stat_show(int dom_id)
     printk("dom %d wfe cnt %lu\n", dom_id, virt_stat->wfe_cnt);
     printk("dom %d mmio cnt %lu\n", dom_id, virt_stat->mmio_cnt);
     printk("dom %d guest fault cnt %lu\n", dom_id, virt_stat->guest_fault_cnt);
+    printk("dom %d trap hvc32 cnt %lu\n", dom_id, virt_stat->trap_hvc32_cnt);
+    printk("dom %d trap hvc64 cnt %lu\n", dom_id, virt_stat->trap_hvc64_cnt);
     printk("----------------------\n");
     return;
 }
@@ -46,6 +48,8 @@ void virt_stat_init(unsigned char key)
     virt_stat->guest_irqs_cnt = 0;
     virt_stat->ppis_cnt = 0;
     virt_stat->spis_cnt= 0;
+    virt_stat->trap_hvc32_cnt= 0;
+    virt_stat->trap_hvc64_cnt= 0;
     xen_stat_en = 1;
 }
 

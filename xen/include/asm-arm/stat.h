@@ -22,6 +22,8 @@ struct arm_virt_stat
     unsigned long guest_irqs_cnt;
     unsigned long ppis_cnt;
     unsigned long spis_cnt;
+    unsigned long trap_hvc32_cnt;
+    unsigned long trap_hvc64_cnt;
 };
 
 #ifndef XEN_ARM_STAT
@@ -29,13 +31,13 @@ struct arm_virt_stat
 
 void inline __evt_cnt_incr(unsigned long *cnt)
 {
-    int dom_id = current->domain->domain_id;
+    //int dom_id = current->domain->domain_id;
 
     if (!cnt)
         return;
 
-    if (xen_stat_en && dom_id != 0)
-    //if (xen_stat_en)
+    //if (xen_stat_en && dom_id != 0)
+    if (xen_stat_en)
         (*cnt)++;
     return;
 }
