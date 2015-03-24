@@ -4,6 +4,7 @@
 void virt_stat_init(void)
 {
     virt_stat = xmalloc(struct arm_virt_stat);
+    BUG_ON(virt_stat == NULL);
     return;
 }
 
@@ -25,6 +26,7 @@ void virt_stat_reset(void)
     virt_stat->ppis_cnt = 0;
     virt_stat->spis_cnt= 0;*/
     xfree(virt_stat);
+    virt_stat = NULL;
     return;
 }
 

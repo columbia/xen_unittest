@@ -2024,13 +2024,14 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
     if (regs->x0 == HVC_EVT_START)
     {
         xen_stat_en = 1;
-        virt_stat_reset();
+        virt_stat_init();
         return;
     }
     else if (regs->x0 == HVC_EVT_END) 
     {
         xen_stat_en = 0;
         virt_stat_show(current->domain->domain_id);
+        virt_stat_reset();
         return;
     }
 
