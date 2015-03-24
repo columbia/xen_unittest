@@ -1,35 +1,6 @@
 #include <asm/stat.h>
 #include <xen/domain_page.h>
 
-void inline virt_stat_init(void)
-{
-    virt_stat = xmalloc(struct arm_virt_stat);
-    BUG_ON(virt_stat == NULL);
-    virt_stat->trap_hyp_cnt = 0;
-    virt_stat->trap_irq_cnt = 0;
-    virt_stat->trap_fiq_cnt = 0;
-    virt_stat->timer_inj_cnt = 0;
-    virt_stat->do_irq_cnt = 0;
-    virt_stat->do_sgi_cnt = 0;
-    virt_stat->dispatch_sgi_cnt = 0;
-    virt_stat->ipi_cnt = 0;
-    virt_stat->wfi_cnt = 0;
-    virt_stat->wfe_cnt = 0;
-    virt_stat->mmio_cnt = 0;
-    virt_stat->guest_fault_cnt = 0;
-    virt_stat->guest_irqs_cnt = 0;
-    virt_stat->ppis_cnt = 0;
-    virt_stat->spis_cnt= 0;
-    xen_stat_en = 1;
-}
-
-void inline virt_stat_reset(void)
-{
-    /**/
-    xfree(virt_stat);
-    virt_stat = NULL;
-}
-
 void virt_stat_show(int dom_id)
 {
     printk("total trap count %lu\n", virt_stat->trap_irq_cnt + 
@@ -54,4 +25,34 @@ void virt_stat_show(int dom_id)
     printk("dom %d guest fault cnt %lu\n", dom_id, virt_stat->guest_fault_cnt);
     printk("----------------------\n");
     return;
+}
+
+void virt_stat_init(unsigned char key)
+{
+    virt_stat = xmalloc(struct arm_virt_stat);
+    BUG_ON(virt_stat == NULL);
+    virt_stat->trap_hyp_cnt = 0;
+    virt_stat->trap_irq_cnt = 0;
+    virt_stat->trap_fiq_cnt = 0;
+    virt_stat->timer_inj_cnt = 0;
+    virt_stat->do_irq_cnt = 0;
+    virt_stat->do_sgi_cnt = 0;
+    virt_stat->dispatch_sgi_cnt = 0;
+    virt_stat->ipi_cnt = 0;
+    virt_stat->wfi_cnt = 0;
+    virt_stat->wfe_cnt = 0;
+    virt_stat->mmio_cnt = 0;
+    virt_stat->guest_fault_cnt = 0;
+    virt_stat->guest_irqs_cnt = 0;
+    virt_stat->ppis_cnt = 0;
+    virt_stat->spis_cnt= 0;
+    xen_stat_en = 1;
+}
+
+void virt_stat_reset(unsigned char key)
+{
+    xen_stat_en = 0;
+    virt_stat_show(current->domain->domain_id);
+    xfree(virt_stat);
+    virt_stat = NULL;
 }

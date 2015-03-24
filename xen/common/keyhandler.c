@@ -20,6 +20,7 @@
 #include <xen/init.h>
 #include <asm/debugger.h>
 #include <asm/div64.h>
+#include <asm/stat.h>
 
 static struct keyhandler *key_table[256];
 static unsigned char keypress_key;
@@ -539,6 +540,18 @@ static struct keyhandler toggle_alt_keyhandler = {
     .desc = "toggle alternative key handling"
 };
 
+static struct keyhandler evt_start_keyhandler = {
+    .irq_callback = 1,
+    .u.fn = virt_stat_init,
+    .desc = "start virt event profiling"
+};
+
+static struct keyhandler evt_end_keyhandler = {
+    .irq_callback = 1,
+    .u.fn = virt_stat_reset,
+    .desc = "end virt event profiling"
+};
+
 void __init initialize_keytable(void)
 {
     if ( num_present_cpus() > 16 )
@@ -557,6 +570,8 @@ void __init initialize_keytable(void)
     register_keyhandler('0', &dump_hwdom_registers_keyhandler);
     register_keyhandler('%', &do_debug_key_keyhandler);
     register_keyhandler('*', &run_all_keyhandlers_keyhandler);
+    register_keyhandler('s', &evt_start_keyhandler);
+    register_keyhandler('S', &evt_end_keyhandler);
 
 #ifdef PERF_COUNTERS
     register_keyhandler('p', &perfc_printall_keyhandler);

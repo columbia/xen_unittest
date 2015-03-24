@@ -34,8 +34,8 @@ void inline __evt_cnt_incr(unsigned long *cnt)
     if (!cnt)
         return;
 
-    //if (xen_stat_en && dom_id != 0)
-    if (xen_stat_en)
+    if (xen_stat_en && dom_id != 0)
+    //if (xen_stat_en)
         (*cnt)++;
     return;
 }
@@ -43,7 +43,11 @@ void inline __evt_cnt_incr(unsigned long *cnt)
         &virt_stat->_evt ## _cnt)
 
 extern struct arm_virt_stat *virt_stat;
-extern void virt_stat_init(void);
-extern void virt_stat_reset(void);
+extern void virt_stat_init(unsigned char key);
+extern void virt_stat_reset(unsigned char key);
 extern void virt_stat_show(int dom_id);
 #endif
+
+
+
+

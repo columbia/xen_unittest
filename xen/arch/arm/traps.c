@@ -2021,7 +2021,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
      * correctly (See XSA-102). Until that is resolved we treat any
      * trap from 32-bit userspace on 64-bit kernel as undefined.
      */
-    if (regs->x0 == HVC_EVT_START)
+    /*if (regs->x0 == HVC_EVT_START)
     {
         virt_stat_init();
         return;
@@ -2032,7 +2032,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         virt_stat_show(current->domain->domain_id);
         virt_stat_reset();
         return;
-    }
+    }*/
 
     evt_cnt_incr(trap_hyp);
 
