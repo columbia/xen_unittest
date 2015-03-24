@@ -2089,6 +2089,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         inject_undef32_exception(regs);
         break;
     case HSR_EC_HVC32:
+        evt_cnt_incr(trap_hvc32);
 #ifndef NDEBUG
         if ( (hsr.iss & 0xff00) == 0xff00 )
             return do_debug_trap(regs, hsr.iss & 0x00ff);
@@ -2099,6 +2100,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         break;
 #ifdef CONFIG_ARM_64
     case HSR_EC_HVC64:
+        evt_cnt_incr(trap_hvc64);
 #ifndef NDEBUG
         if ( (hsr.iss & 0xff00) == 0xff00 )
             return do_debug_trap(regs, hsr.iss & 0x00ff);
