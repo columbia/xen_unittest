@@ -25,7 +25,10 @@ struct arm_virt_stat
     unsigned long trap_hvc32_cnt;
     unsigned long trap_hvc64_cnt;
     unsigned long hyp_sched_cnt;
+    unsigned long hyp_xsm_cnt;
     unsigned long hyp_ec_cnt;
+    unsigned long hyp_sysctl_cnt;
+    unsigned long hyp_grant_table_cnt;
     unsigned long hyp_vcpuop_cnt;
 };
 

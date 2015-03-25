@@ -39,6 +39,7 @@
 #include <xen/keyhandler.h>
 #include <xsm/xsm.h>
 #include <asm/flushtlb.h>
+#include <asm/stat.h>
 
 /* 
  * This option is deprecated, use gnttab_max_frames and
@@ -2627,7 +2628,8 @@ do_grant_table_op(
 {
     long rc;
     unsigned int opaque_in = cmd & GNTTABOP_ARG_MASK, opaque_out = 0;
-    
+
+    evt_cnt_incr(hyp_grant_table);    
     if ( (int)count < 0 )
         return -EINVAL;
 

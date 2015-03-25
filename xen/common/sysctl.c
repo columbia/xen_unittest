@@ -27,6 +27,7 @@
 #include <xsm/xsm.h>
 #include <xen/pmstat.h>
 #include <xen/gcov.h>
+#include <asm/stat.h>
 
 long do_sysctl(XEN_GUEST_HANDLE_PARAM(xen_sysctl_t) u_sysctl)
 {
@@ -35,6 +36,7 @@ long do_sysctl(XEN_GUEST_HANDLE_PARAM(xen_sysctl_t) u_sysctl)
     struct xen_sysctl curop, *op = &curop;
     static DEFINE_SPINLOCK(sysctl_lock);
 
+    evt_cnt_incr(hyp_sysctl);
     if ( copy_from_guest(op, u_sysctl, 1) )
         return -EFAULT;
 

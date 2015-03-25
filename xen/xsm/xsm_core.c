@@ -17,6 +17,8 @@
 #include <xen/hypercall.h>
 #include <xsm/xsm.h>
 
+#include <asm/stat.h>
+
 #ifdef XSM_ENABLE
 
 #define XSM_FRAMEWORK_VERSION    "1.0.0"
@@ -148,6 +150,7 @@ int unregister_xsm(struct xsm_operations *ops)
 
 long do_xsm_op (XEN_GUEST_HANDLE_PARAM(xsm_op_t) op)
 {
+    evt_cnt_incr(hyp_xsm);
     return xsm_do_xsm_op(op);
 }
 

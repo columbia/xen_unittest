@@ -28,6 +28,9 @@ void virt_stat_show(int dom_id)
     printk("dom %d hyp sched cnt %lu\n", dom_id, virt_stat->hyp_sched_cnt);
     printk("dom %d hyp ec cnt %lu\n", dom_id, virt_stat->hyp_ec_cnt);
     printk("dom %d hyp vcpuop cnt %lu\n", dom_id, virt_stat->hyp_vcpuop_cnt);
+    printk("dom %d hyp xsm cnt %lu\n", dom_id, virt_stat->hyp_xsm_cnt);
+    printk("dom %d hyp sysctl cnt %lu\n", dom_id, virt_stat->hyp_sysctl_cnt);
+    printk("dom %d hyp grant_table cnt %lu\n", dom_id, virt_stat->hyp_grant_table_cnt);
     printk("----------------------\n");
     return;
 }
@@ -56,6 +59,9 @@ void virt_stat_init(unsigned char key)
     virt_stat->hyp_sched_cnt= 0;
     virt_stat->hyp_ec_cnt= 0;
     virt_stat->hyp_vcpuop_cnt= 0;
+    virt_stat->hyp_xsm_cnt= 0;
+    virt_stat->hyp_sysctl_cnt= 0;
+    virt_stat->hyp_grant_table_cnt= 0;
     xen_stat_en = 1;
 }
 
