@@ -25,6 +25,9 @@ void virt_stat_show(int dom_id)
     printk("dom %d guest fault cnt %lu\n", dom_id, virt_stat->guest_fault_cnt);
     printk("dom %d trap hvc32 cnt %lu\n", dom_id, virt_stat->trap_hvc32_cnt);
     printk("dom %d trap hvc64 cnt %lu\n", dom_id, virt_stat->trap_hvc64_cnt);
+    printk("dom %d hyp sched cnt %lu\n", dom_id, virt_stat->hyp_sched_cnt);
+    printk("dom %d hyp ec cnt %lu\n", dom_id, virt_stat->hyp_ec_cnt);
+    printk("dom %d hyp vcpuop cnt %lu\n", dom_id, virt_stat->hyp_vcpuop_cnt);
     printk("----------------------\n");
     return;
 }
@@ -50,6 +53,9 @@ void virt_stat_init(unsigned char key)
     virt_stat->spis_cnt= 0;
     virt_stat->trap_hvc32_cnt= 0;
     virt_stat->trap_hvc64_cnt= 0;
+    virt_stat->hyp_sched_cnt= 0;
+    virt_stat->hyp_ec_cnt= 0;
+    virt_stat->hyp_vcpuop_cnt= 0;
     xen_stat_en = 1;
 }
 

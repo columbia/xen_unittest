@@ -24,6 +24,9 @@ struct arm_virt_stat
     unsigned long spis_cnt;
     unsigned long trap_hvc32_cnt;
     unsigned long trap_hvc64_cnt;
+    unsigned long hyp_sched_cnt;
+    unsigned long hyp_ec_cnt;
+    unsigned long hyp_vcpuop_cnt;
 };
 
 #ifndef XEN_ARM_STAT

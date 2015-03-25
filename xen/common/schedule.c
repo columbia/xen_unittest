@@ -37,6 +37,7 @@
 #include <xen/event.h>
 #include <public/sched.h>
 #include <xsm/xsm.h>
+#include <asm/stat.h>
 
 /* opt_sched: scheduler - default to credit */
 static char __initdata opt_sched[10] = "credit";
@@ -925,7 +926,7 @@ typedef long ret_t;
 ret_t do_sched_op(int cmd, XEN_GUEST_HANDLE_PARAM(void) arg)
 {
     ret_t ret = 0;
-
+    evt_cnt_incr(hyp_sched);
     switch ( cmd )
     {
     case SCHEDOP_yield:

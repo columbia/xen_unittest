@@ -32,6 +32,7 @@
 #include <public/xen.h>
 #include <public/event_channel.h>
 #include <xsm/xsm.h>
+#include <asm/stat.h>
 
 #define ERROR_EXIT(_errno)                                          \
     do {                                                            \
@@ -1006,6 +1007,7 @@ long do_event_channel_op(int cmd, XEN_GUEST_HANDLE_PARAM(void) arg)
 {
     long rc;
 
+    evt_cnt_incr(hyp_ec);
     switch ( cmd )
     {
     case EVTCHNOP_alloc_unbound: {

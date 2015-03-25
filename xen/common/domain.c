@@ -42,6 +42,7 @@
 #include <xsm/xsm.h>
 #include <xen/trace.h>
 #include <xen/tmem.h>
+#include <asm/stat.h>
 
 /* Linux config option: propageted to domain0 */
 /* xen_processor_pmbits: xen control Cx, Px, ... */
@@ -1146,6 +1147,7 @@ long do_vcpu_op(int cmd, int vcpuid, XEN_GUEST_HANDLE_PARAM(void) arg)
     struct vcpu_guest_context *ctxt;
     long rc = 0;
 
+    evt_cnt_incr(hyp_vcpuop);
     if ( (vcpuid < 0) || (vcpuid >= MAX_VIRT_CPUS) )
         return -EINVAL;
 
