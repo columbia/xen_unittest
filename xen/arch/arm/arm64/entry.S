@@ -1,11 +1,8 @@
 #include <xen/config.h>
+#include <xen/virt_test.h>
 #include <asm/asm_defns.h>
 #include <asm/regs.h>
 #include <public/xen.h>
-
-//#define TRAP_INOUT
-//#define BREAKDOWN
-
 
 /*
  * Register aliases.

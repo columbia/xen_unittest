@@ -30,6 +30,7 @@
 #include <xen/hypercall.h>
 #include <xen/softirq.h>
 #include <xen/domain_page.h>
+#include <xen/virt_test.h>
 #include <public/sched.h>
 #include <public/xen.h>
 #include <asm/debugger.h>
@@ -2010,8 +2011,10 @@ static void enter_hypervisor_head(struct cpu_user_regs *regs)
 void enable_ccounts(void)
 {
 	uint32_t cc_32=11;
+	long flags;
 	printk("======= enable PMU cycle count at CPU %d========\n",smp_processor_id());
 #ifdef CONFIG_ARM_64
+	local_irq_save(flags);
 	asm volatile(
 		"mrs %0, PMINTENCLR_EL1\n"
 		"orr %0, %0, #(1<< 31)\n"
@@ -2034,6 +2037,7 @@ void enable_ccounts(void)
 		"msr PMCNTENSET_EL0, %0\n"
 		: "=r" (cc_32)
 	);
+	local_irq_restore(flags);
 #else
 	asm volatile(
 		"mrc     p15, 0, %0, c9, c12, 0\n"
@@ -2097,6 +2101,15 @@ void print_counter(void)
 }
 #endif
 
+#ifdef VM_SWITCH
+static volatile bool xen_vmswitch_ping_sent = false;
+DEFINE_WAITQUEUE_HEAD(vmswitch_queue);
+#define HVC_VMSWITCH_SEND      0x4b000010
+#define HVC_VMSWITCH_RCV       0x4b000020
+#define HVC_VMSWITCH_DONE      0x4b000030
+static unsigned long cc_before;
+#endif
+
 asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
@@ -2108,6 +2121,36 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 	    enable_ccounts();
 	    return;
     }
+
+#ifdef VM_SWITCH
+    else if (regs->x0 == HVC_VMSWITCH_SEND)
+    {
+	    if (list_empty(&vmswitch_queue.list)) {
+		    regs->x0 = -EAGAIN;
+		    return;
+	    }
+
+	    cc_before = regs->x1;
+	    xen_vmswitch_ping_sent = true;
+	    smp_mb();
+	    wake_up_one(&vmswitch_queue);
+	    wait_event(vmswitch_queue, !xen_vmswitch_ping_sent);
+	    regs->x0 = 0;
+	    return;
+
+    }  else if (regs->x0 == HVC_VMSWITCH_RCV) { /* Measure VM switching time */
+	    /* Assume we have one other VM running */
+	    wait_event(vmswitch_queue, xen_vmswitch_ping_sent);
+	    xen_vmswitch_ping_sent = false;
+	    regs->x0 = cc_before;
+	    return;
+    } else if (regs->x0 == HVC_VMSWITCH_DONE) {
+	    /* Assume we have one other VM running */
+	    wake_up_all(&vmswitch_queue);
+	    return;
+    }
+#endif
+
 #else
     if (regs->r0==0x4b000000)
 	    return;

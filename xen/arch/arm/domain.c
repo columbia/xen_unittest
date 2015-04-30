@@ -19,6 +19,7 @@
 #include <xen/errno.h>
 #include <xen/bitops.h>
 #include <xen/grant_table.h>
+#include <xen/virt_test.h>
 
 #include <asm/current.h>
 #include <asm/event.h>
@@ -60,11 +61,6 @@ void idle_loop(void)
         do_softirq();
     }
 }
-
-/* For whole context switch measurement */
-//#define MEASURE_CTX
-/* For breakdown measurement*/
-//#define MEASURE_BREAKDOWN
 
 #if defined(MEASURE_BREAKDOWN) || defined(MEASURE_CTX)
 #ifdef CONFIG_ARM_64
