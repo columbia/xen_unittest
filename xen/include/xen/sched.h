@@ -250,6 +250,10 @@ struct vcpu
     struct evtchn_fifo_vcpu *evtchn_fifo;
 
     struct arch_vcpu arch;
+
+    uint64_t entry_dom;
+    uint64_t acc_exe_time;
+    uint64_t start_time;
 };
 
 /* Per-domain lock can be recursively acquired in fault handlers. */

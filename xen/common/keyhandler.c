@@ -526,6 +526,75 @@ static struct keyhandler do_debug_key_keyhandler = {
     .desc = "trap to xendbg"
 };
 
+int profile_on = 0;
+static inline unsigned long xen_arm_read_pcounter(void)
+{
+	unsigned long val;
+
+	asm volatile(
+			"isb\n"
+			"mrs %0, CNTPCT_EL0\n"
+			"isb\n"
+			: [reg] "=r" (val));
+	return val;
+}
+
+
+static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
+{
+	struct domain *d;
+	struct vcpu   *v;
+	unsigned long start_time;
+	unsigned long stop_time;
+
+	if (profile_on)
+	{
+		profile_on = !profile_on;
+		stop_time = xen_arm_read_pcounter();
+		printk("here comes the stat\n");
+		rcu_read_lock(&domlist_read_lock);
+
+		for_each_domain ( d )
+		{
+        		for_each_vcpu ( d, v )
+			{
+				printk("Accumulated exe time for domain: %u, vcpu: %u is %"PRIu64"\n",d->domain_id , v->vcpu_id, v->acc_exe_time);
+				printk("Start time: %"PRIu64", End time: %"PRIu64", Elapsed time: %"PRIu64"\n",v->start_time, stop_time , stop_time - v->start_time);
+				printk("%12"PRIu64"\n", v->acc_exe_time);
+				printk("%12"PRIu64"\n", stop_time - v->start_time);
+			}
+		}
+		rcu_read_unlock(&domlist_read_lock);
+	}
+	else
+	{
+		rcu_read_lock(&domlist_read_lock);
+
+		start_time = xen_arm_read_pcounter();
+		for_each_domain ( d )
+		{
+        		for_each_vcpu ( d, v )
+			{
+    				v->entry_dom = 0;
+    				v->acc_exe_time = 0;
+				v->start_time = start_time;
+			}
+		}
+
+		rcu_read_unlock(&domlist_read_lock);
+
+		profile_on = !profile_on;
+	}
+
+	printk("Profile is %s\n", profile_on?"On":"Off");
+}
+
+static struct keyhandler toggle_profile_handler = {
+	.irq_callback = 1,
+	.u.irq_fn = toggle_profile,
+	.desc = "Toggle Xen/Domain profiling"
+};
+
 static void do_toggle_alt_key(unsigned char key, struct cpu_user_regs *regs)
 {
     alt_key_handling = !alt_key_handling;
@@ -557,6 +626,7 @@ void __init initialize_keytable(void)
     register_keyhandler('0', &dump_hwdom_registers_keyhandler);
     register_keyhandler('%', &do_debug_key_keyhandler);
     register_keyhandler('*', &run_all_keyhandlers_keyhandler);
+    register_keyhandler('C', &toggle_profile_handler);
 
 #ifdef PERF_COUNTERS
     register_keyhandler('p', &perfc_printall_keyhandler);

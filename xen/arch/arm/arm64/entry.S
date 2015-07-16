@@ -20,6 +20,13 @@ lr      .req    x30             // link register
         ldp     \xreg1, \xreg2, [sp], #16
         .endm
 
+	.macro read_pcounter reg
+	
+	isb
+	mrs \reg, CNTPCT_EL0
+	isb
+	
+	.endm
 /*
  * Save/restore guest mode specific state, outer stack frame
  */

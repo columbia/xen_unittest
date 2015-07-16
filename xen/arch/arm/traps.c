@@ -2007,9 +2007,34 @@ static void enter_hypervisor_head(struct cpu_user_regs *regs)
         gic_clear_lrs(current);
 }
 
+static inline unsigned long xen_arm_read_pcounter(void)
+{
+	unsigned long val;
+
+	asm volatile(
+			"isb\n"
+			"mrs %0, CNTPCT_EL0\n"
+			"isb\n"
+			: [reg] "=r" (val));
+	return val;
+}
+
+extern int profile_on;
 asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
+
+    uint64_t cur_time;
+
+    if (profile_on)
+    {
+	    //if (current->entry_dom)
+	    {
+		    cur_time = xen_arm_read_pcounter();
+		   // current->acc_exe_time += cur_time - current->entry_dom;
+
+	    }
+    }
 
     enter_hypervisor_head(regs);
 
@@ -2022,7 +2047,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
          psr_mode_is_32bit(regs->cpsr) )
     {
         inject_undef_exception(regs, hsr.len);
-        return;
+        /*return*/ goto out;
     }
 
     switch (hsr.ec) {
@@ -2030,7 +2055,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         if ( !check_conditional_instr(regs, hsr) )
         {
             advance_pc(regs, hsr);
-            return;
+            /*return*/ goto out;
         }
         if ( hsr.wfi_wfe.ti ) {
             /* Yield the VCPU for WFE */
@@ -2072,20 +2097,32 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
     case HSR_EC_HVC32:
 #ifndef NDEBUG
         if ( (hsr.iss & 0xff00) == 0xff00 )
-            return do_debug_trap(regs, hsr.iss & 0x00ff);
+	{
+	    do_debug_trap(regs, hsr.iss & 0x00ff);
+            /*return*/ goto out;
+	}
 #endif
-        if ( hsr.iss == 0 )
-            return do_trap_psci(regs);
-        do_trap_hypercall(regs, (register_t *)&regs->r12, hsr.iss);
+	if ( hsr.iss == 0 )
+	{
+		do_trap_psci(regs);
+		/*return*/ goto out ;
+	}
+	do_trap_hypercall(regs, (register_t *)&regs->r12, hsr.iss);
         break;
 #ifdef CONFIG_ARM_64
     case HSR_EC_HVC64:
 #ifndef NDEBUG
         if ( (hsr.iss & 0xff00) == 0xff00 )
-            return do_debug_trap(regs, hsr.iss & 0x00ff);
+	{
+		do_debug_trap(regs, hsr.iss & 0x00ff);
+            /*return*/ goto out ;
+	}
 #endif
         if ( hsr.iss == 0 )
-            return do_trap_psci(regs);
+	{
+		do_trap_psci(regs);
+		/*return*/ goto out ;
+	}
         do_trap_hypercall(regs, &regs->x16, hsr.iss);
         break;
     case HSR_EC_SMC64:
@@ -2117,12 +2154,31 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
                hsr.bits, hsr.ec, hsr.len, hsr.iss);
         do_unexpected_trap("Hypervisor", regs);
     }
+out:
+    if (profile_on)
+    {
+	    current->entry_dom = xen_arm_read_pcounter();
+    }
 }
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
+
+    uint64_t cur_time;
+
+    if (profile_on)
+    {
+	    if (current->entry_dom)
+	    {
+		    cur_time = xen_arm_read_pcounter();
+//		    current->acc_exe_time += cur_time - current->entry_dom;
+	    }
+    }
+
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 0);
+
+    current->entry_dom = xen_arm_read_pcounter();
 }
 
 asmlinkage void do_trap_fiq(struct cpu_user_regs *regs)
