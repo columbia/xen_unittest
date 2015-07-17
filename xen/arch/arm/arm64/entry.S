@@ -205,6 +205,7 @@ guest_sync:
 guest_irq:
         entry   hyp=0, compat=0
         mov     x0, sp
+	read_pcounter x19
         bl      do_trap_irq
         exit    hyp=0, compat=0
 

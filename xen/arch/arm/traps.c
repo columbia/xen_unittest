@@ -2020,22 +2020,38 @@ static inline unsigned long xen_arm_read_pcounter(void)
 }
 
 extern int profile_on;
-asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
-{
-    union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
 
+void account_stat_entry(struct cpu_user_regs *regs)
+{
     if (profile_on && guest_mode(regs)) {
 	    unsigned long cc = 0;
+	    current->ts_do_trap_xxx_entry = xen_arm_read_pcounter();
 	    asm volatile(
 	    		"mov %[cc], x19\n\t":
 			[cc] "=r" (cc): :
 			"x19");
-	    current->ts_do_trap_xxx_entry = xen_arm_read_pcounter();
+	    current->ts_xen_entry = cc;
 	    if (current->ts_leave_hyp_tail != 0) {
 		    current->acc_dom_time += current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail;
+			//				printk("[p:%u, d: %u, v:%u] domain entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_leave_hyp_tail, current->ts_do_trap_xxx_entry ,current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail, current->acc_dom_time);
 	    }
     }
+}
 
+void account_stat_exit(struct cpu_user_regs *regs)
+{
+	if (profile_on && guest_mode(regs)) {
+		current->ts_do_trap_xxx_exit = xen_arm_read_pcounter();
+		if (current->ts_do_trap_xxx_entry)
+			current->acc_do_trap_time += current->ts_do_trap_xxx_exit - current->ts_do_trap_xxx_entry;
+	}
+}
+
+asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
+{
+    union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
+
+    account_stat_entry(regs);
     enter_hypervisor_head(regs);
 
     /*
@@ -2155,33 +2171,16 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         do_unexpected_trap("Hypervisor", regs);
     }
 out:
-    if (profile_on && guest_mode(regs)) {
-	    current->ts_do_trap_xxx_exit = xen_arm_read_pcounter();
-	    if (current->ts_do_trap_xxx_entry)
-		    current->acc_do_trap_time += current->ts_do_trap_xxx_exit - current->ts_do_trap_xxx_entry;
-    }
+	account_stat_exit(regs);
 }
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
+	account_stat_entry(regs);
 
-	if (profile_on && guest_mode(regs)) {
-		current->ts_do_trap_xxx_entry = xen_arm_read_pcounter();
-		if (current->ts_leave_hyp_tail) {
-			current->acc_dom_time += current->ts_do_trap_xxx_entry- current->ts_leave_hyp_tail;
-			//				printk("[p:%u, d: %u, v:%u] domain entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_leave_hyp_tail, current->ts_do_trap_xxx_entry ,current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail, current->acc_dom_time);
-
-		}
-	}
-
-    enter_hypervisor_head(regs);
-    gic_interrupt(regs, 0);
-
-    if (profile_on && guest_mode(regs)) {
-	    current->ts_do_trap_xxx_exit = xen_arm_read_pcounter();
-	    if (current->ts_do_trap_xxx_entry)
-		    current->acc_do_trap_time += current->ts_do_trap_xxx_exit - current->ts_do_trap_xxx_entry;
-    }
+	enter_hypervisor_head(regs);
+	gic_interrupt(regs, 0);
+	account_stat_exit(regs);
 }
 
 asmlinkage void do_trap_fiq(struct cpu_user_regs *regs)
