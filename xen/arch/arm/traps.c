@@ -2021,7 +2021,7 @@ static inline unsigned long xen_arm_read_pcounter(void)
 
 extern int profile_on;
 
-void account_stat_entry(struct cpu_user_regs *regs)
+static inline void account_stat_entry(struct cpu_user_regs *regs)
 {
     if (profile_on && guest_mode(regs)) {
 	    unsigned long cc = 0;
@@ -2033,7 +2033,7 @@ void account_stat_entry(struct cpu_user_regs *regs)
 	    current->ts_xen_entry = cc;
 	    if (current->ts_leave_hyp_tail != 0) {
 		    current->acc_dom_time += current->ts_xen_entry - current->ts_leave_hyp_tail;
-		//printk("[p:%u, d: %u, v:%u] domain entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_leave_hyp_tail, current->ts_do_trap_xxx_entry ,current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail, current->acc_dom_time);
+	//	printk("[p:%u, d: %u, v:%u] Xen entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_xen_entry, current->ts_leave_hyp_tail ,current->ts_xen_entry- current->ts_leave_hyp_tail, current->acc_dom_time);
 	    }
     }
 }
