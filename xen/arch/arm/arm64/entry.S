@@ -249,7 +249,7 @@ return_from_trap:
 
         ldp     x21, x22, [sp, #UREGS_PC]       // load ELR, SPSR
 
-	add     x28, x0, #VCPU_vcpu_test// x28 has addr of vcpu_test
+	add     x28, x0, #VCPU_ts_xen_exit	// x28 has addr of ts_xen_exit
 	
         pop     x0, x1
         pop     x2, x3
@@ -269,7 +269,7 @@ return_from_trap:
         pop     x22, x23
         pop     x24, x25
         pop     x26, x27
-	mov	x29, #1818
+	read_pcounter x29
         str     x29, [x28]
         pop     x28, x29
 

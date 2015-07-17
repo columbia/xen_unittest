@@ -569,14 +569,13 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 				printk("Accumulated exe time for domain: %u, vcpu: %u is %"PRIu64"\n",d->domain_id , v->vcpu_id, v->acc_dom_time);
 				printk("Accumulated exe time for Xen: %u, vcpu: %u is %"PRIu64"\n",d->domain_id , v->vcpu_id, v->acc_do_trap_time);
 				printk("Start time: %"PRIu64", End time: %"PRIu64", Elapsed time: %"PRIu64"\n",v->start_time, stop_time , stop_time - v->start_time);
-				printk("vcpu_test %"PRIu64"\n",v->vcpu_test);
 				sum_acc_dom_time += v->acc_dom_time;
 				sum_acc_do_trap_time += v->acc_do_trap_time;
 			}
 			printk("Domain %u Summary\n", d->domain_id);
-				printk("Domain:\t%12"PRIu64"\n", sum_acc_dom_time);
-				printk("Xen:\t%12"PRIu64"\n", sum_acc_do_trap_time);
-				printk("Total:\t%12"PRIu64"\n", duration);
+			printk("Domain:\t%12"PRIu64"\n", sum_acc_dom_time);
+			printk("Xen:\t%12"PRIu64"\n", sum_acc_do_trap_time);
+			printk("Total:\t%12"PRIu64"\n", duration);
 		}
 		rcu_read_unlock(&domlist_read_lock);
 	}
@@ -589,7 +588,6 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		{
         		for_each_vcpu ( d, v )
 			{
-				v->vcpu_test = 7878;
 				v->ts_xen_exit = 0;
 				v->ts_xen_entry = 0;
     				v->ts_leave_hyp_tail= 0;
@@ -599,7 +597,6 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
     				v->acc_dom_time = 0;
     				v->acc_do_trap_time = 0;
 				v->start_time = start_time;
-				printk("vcpu_test %"PRIu64"\n",v->vcpu_test);
 			}
 		}
 

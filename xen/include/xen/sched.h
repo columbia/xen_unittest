@@ -261,7 +261,6 @@ struct vcpu
     uint64_t ts_do_trap_xxx_exit;
     uint64_t ts_do_trap_xxx_entry;
     uint64_t ts_leave_hyp_tail;
-    uint64_t vcpu_test;
 };
 
 /* Per-domain lock can be recursively acquired in fault handlers. */
