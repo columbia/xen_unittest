@@ -251,9 +251,13 @@ struct vcpu
 
     struct arch_vcpu arch;
 
-    uint64_t entry_dom;
     uint64_t acc_exe_time;
     uint64_t start_time;
+    uint64_t acc_dom_time;
+    uint64_t acc_do_trap_time;
+    uint64_t ts_do_trap_xxx_exit;
+    uint64_t ts_do_trap_xxx_entry;
+    uint64_t ts_leave_hyp_tail;
 };
 
 /* Per-domain lock can be recursively acquired in fault handlers. */

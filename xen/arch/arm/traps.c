@@ -2024,15 +2024,15 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
 
-    uint64_t cur_time;
-
-    if (profile_on)
-    {
-	    //if (current->entry_dom)
-	    {
-		    cur_time = xen_arm_read_pcounter();
-		   // current->acc_exe_time += cur_time - current->entry_dom;
-
+    if (profile_on && guest_mode(regs)) {
+	    unsigned long cc = 0;
+	    asm volatile(
+	    		"mov %[cc], x19\n\t":
+			[cc] "=r" (cc): :
+			"x19");
+	    current->ts_do_trap_xxx_entry = xen_arm_read_pcounter();
+	    if (current->ts_leave_hyp_tail != 0) {
+		    current->acc_dom_time += current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail;
 	    }
     }
 
@@ -2155,30 +2155,33 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         do_unexpected_trap("Hypervisor", regs);
     }
 out:
-    if (profile_on)
-    {
-	    current->entry_dom = xen_arm_read_pcounter();
+    if (profile_on && guest_mode(regs)) {
+	    current->ts_do_trap_xxx_exit = xen_arm_read_pcounter();
+	    if (current->ts_do_trap_xxx_entry)
+		    current->acc_do_trap_time += current->ts_do_trap_xxx_exit - current->ts_do_trap_xxx_entry;
     }
 }
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
 
-    uint64_t cur_time;
+	if (profile_on && guest_mode(regs)) {
+		current->ts_do_trap_xxx_entry = xen_arm_read_pcounter();
+		if (current->ts_leave_hyp_tail) {
+			current->acc_dom_time += current->ts_do_trap_xxx_entry- current->ts_leave_hyp_tail;
+			//				printk("[p:%u, d: %u, v:%u] domain entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_leave_hyp_tail, current->ts_do_trap_xxx_entry ,current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail, current->acc_dom_time);
 
-    if (profile_on)
-    {
-	    if (current->entry_dom)
-	    {
-		    cur_time = xen_arm_read_pcounter();
-//		    current->acc_exe_time += cur_time - current->entry_dom;
-	    }
-    }
+		}
+	}
 
     enter_hypervisor_head(regs);
     gic_interrupt(regs, 0);
 
-    current->entry_dom = xen_arm_read_pcounter();
+    if (profile_on && guest_mode(regs)) {
+	    current->ts_do_trap_xxx_exit = xen_arm_read_pcounter();
+	    if (current->ts_do_trap_xxx_entry)
+		    current->acc_do_trap_time += current->ts_do_trap_xxx_exit - current->ts_do_trap_xxx_entry;
+    }
 }
 
 asmlinkage void do_trap_fiq(struct cpu_user_regs *regs)
@@ -2194,6 +2197,7 @@ asmlinkage void leave_hypervisor_tail(void)
         local_irq_disable();
         if (!softirq_pending(smp_processor_id())) {
             gic_inject();
+	    current->ts_leave_hyp_tail = xen_arm_read_pcounter();
             return;
         }
         local_irq_enable();

@@ -755,7 +755,6 @@ void __init start_xen(unsigned long boot_phys_offset,
 
     smp_init_cpus();
     cpus = smp_get_max_cpus();
-    cpus = 1;
 
     init_xen_time();
 

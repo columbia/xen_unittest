@@ -198,6 +198,7 @@ guest_sync:
         entry   hyp=0, compat=0
         msr     daifclr, #2
         mov     x0, sp
+	read_pcounter x19
         bl      do_trap_hypervisor
         exit    hyp=0, compat=0
 
