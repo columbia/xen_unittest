@@ -145,6 +145,7 @@ lr      .req    x30             // link register
 
         .endif
 
+        bl	get_current
         b       return_from_trap
 
         .endm
@@ -248,6 +249,8 @@ return_from_trap:
 
         ldp     x21, x22, [sp, #UREGS_PC]       // load ELR, SPSR
 
+	add     x28, x0, #VCPU_vcpu_test// x28 has addr of vcpu_test
+	
         pop     x0, x1
         pop     x2, x3
         pop     x4, x5
@@ -266,6 +269,8 @@ return_from_trap:
         pop     x22, x23
         pop     x24, x25
         pop     x26, x27
+	mov	x29, #1818
+        str     x29, [x28]
         pop     x28, x29
 
         ldr     lr, [sp], #(UREGS_SPSR_el1 - UREGS_LR) /* CPSR, PC, SP, LR */

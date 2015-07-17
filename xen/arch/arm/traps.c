@@ -2031,8 +2031,8 @@ static inline void account_stat_entry(struct cpu_user_regs *regs)
 			[cc] "=r" (cc): :
 			"x19");
 	    current->ts_xen_entry = cc;
-	    if (current->ts_leave_hyp_tail != 0) {
-		    current->acc_dom_time += current->ts_xen_entry - current->ts_leave_hyp_tail;
+	    if (current->ts_xen_exit!= 0) {
+		    current->acc_dom_time += current->ts_xen_entry - current->ts_xen_exit;
 	//	printk("[p:%u, d: %u, v:%u] Xen entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_xen_entry, current->ts_leave_hyp_tail ,current->ts_xen_entry- current->ts_leave_hyp_tail, current->acc_dom_time);
 	    }
     }
@@ -2204,6 +2204,10 @@ asmlinkage void leave_hypervisor_tail(void)
     }
 }
 
+asmlinkage struct vcpu * get_current(void)
+{
+	return current;
+}
 /*
  * Local variables:
  * mode: C
