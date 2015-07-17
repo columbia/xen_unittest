@@ -2032,8 +2032,8 @@ void account_stat_entry(struct cpu_user_regs *regs)
 			"x19");
 	    current->ts_xen_entry = cc;
 	    if (current->ts_leave_hyp_tail != 0) {
-		    current->acc_dom_time += current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail;
-			//				printk("[p:%u, d: %u, v:%u] domain entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_leave_hyp_tail, current->ts_do_trap_xxx_entry ,current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail, current->acc_dom_time);
+		    current->acc_dom_time += current->ts_xen_entry - current->ts_leave_hyp_tail;
+		//printk("[p:%u, d: %u, v:%u] domain entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_leave_hyp_tail, current->ts_do_trap_xxx_entry ,current->ts_do_trap_xxx_entry - current->ts_leave_hyp_tail, current->acc_dom_time);
 	    }
     }
 }
