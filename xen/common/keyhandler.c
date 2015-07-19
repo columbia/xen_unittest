@@ -548,7 +548,11 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 	unsigned long stop_time;
 	unsigned long sum_acc_dom_time;
 	unsigned long sum_acc_do_trap_time;
+	unsigned long sum_dom_time_from_stat;
+	unsigned long sum_sched_in;
 	unsigned long duration;
+	unsigned long dom_time_from_stat;
+	struct vcpu_runstate_info runstate;
 
 	if (profile_on)
 	{
@@ -561,20 +565,45 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		{
 			sum_acc_dom_time = 0;
 			sum_acc_do_trap_time = 0;
+			sum_sched_in = 0;
 			duration = 0;
+			dom_time_from_stat = 0;
+			sum_dom_time_from_stat = 0;
 
         		for_each_vcpu ( d, v )
 			{
 				duration = stop_time - v->start_time;
-				printk("Accumulated exe time for domain: %u, vcpu: %u is %"PRIu64"\n",d->domain_id , v->vcpu_id, v->acc_dom_time);
-				printk("Accumulated exe time for Xen: %u, vcpu: %u is %"PRIu64"\n",d->domain_id , v->vcpu_id, v->acc_do_trap_time);
-				printk("Start time: %"PRIu64", End time: %"PRIu64", Elapsed time: %"PRIu64"\n",v->start_time, stop_time , stop_time - v->start_time);
+
+				if (v->ts_sched_out > v->ts_sched_in) { /* vcpu not running */
+					v->acc_sched_out += stop_time - v->ts_sched_out;
+				} else {
+					v->acc_sched_in += stop_time - v->ts_sched_in;
+				}
+
+				if (v->ts_xen_exit > v->ts_xen_entry) { /* vcpu NOT in EL2 */
+					v->acc_dom_time += stop_time - v->ts_xen_exit;
+				}
+
+				printk("Domain: %u VCPU: %u\n", d->domain_id , v->vcpu_id);
+				printk("Acc sched_in:\t %12"PRIu64"\n", v->acc_sched_in);
+				printk("Acc dom:\t %12"PRIu64"\n", v->acc_dom_time);
+				printk("Acc do_trap:\t %12"PRIu64"\n", v->acc_do_trap_time);
+				printk("Acc sched_out:\t %12"PRIu64"\n", v->acc_sched_out);
+				printk("Acc sched_sum:\t %12"PRIu64"\n", v->acc_sched_out+v->acc_sched_in);
 				sum_acc_dom_time += v->acc_dom_time;
 				sum_acc_do_trap_time += v->acc_do_trap_time;
+				sum_sched_in += v->acc_sched_in;
+				vcpu_runstate_get(v, &runstate);
+				dom_time_from_stat = runstate.time[RUNSTATE_running] - v->init_running_time;
+
+				sum_dom_time_from_stat += dom_time_from_stat;
+				printk("Dom running time from stat: %"PRIu64"\n", dom_time_from_stat);
 			}
 			printk("Domain %u Summary\n", d->domain_id);
+			printk("Running:\t%12"PRIu64"\n", sum_sched_in);
+			printk("Stat:\t%12"PRIu64"\n", sum_dom_time_from_stat/20);
 			printk("Domain:\t%12"PRIu64"\n", sum_acc_dom_time);
-			printk("Xen:\t%12"PRIu64"\n", sum_acc_do_trap_time);
+			printk("Do_trap:\t%12"PRIu64"\n", sum_acc_do_trap_time);
 			printk("Total:\t%12"PRIu64"\n", duration);
 		}
 		rcu_read_unlock(&domlist_read_lock);
@@ -588,15 +617,21 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		{
         		for_each_vcpu ( d, v )
 			{
-				v->ts_xen_exit = 0;
-				v->ts_xen_entry = 0;
+				v->ts_xen_exit = start_time;
+				v->ts_xen_entry = start_time;
     				v->ts_leave_hyp_tail= 0;
-    				v->ts_do_trap_xxx_entry= 0;
-    				v->ts_do_trap_xxx_exit= 0;
+    				v->ts_do_trap_xxx_entry= start_time;
+    				v->ts_do_trap_xxx_exit= start_time;
+				v->ts_sched_out = start_time;
+				v->ts_sched_in = start_time;
     				v->acc_exe_time = 0;
     				v->acc_dom_time = 0;
     				v->acc_do_trap_time = 0;
+				v->acc_sched_out = 0;
+				v->acc_sched_in = 0;
 				v->start_time = start_time;
+				vcpu_runstate_get(v, &runstate);
+				v->init_running_time= runstate.time[RUNSTATE_running];
 			}
 		}
 

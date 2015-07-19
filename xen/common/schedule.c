@@ -1154,6 +1154,38 @@ static void vcpu_periodic_timer_work(struct vcpu *v)
     set_timer(&v->periodic_timer, periodic_next_event);
 }
 
+static inline unsigned long xen_arm_read_pcounter(void)
+{
+	unsigned long val;
+
+	asm volatile(
+			"isb\n"
+			"mrs %0, CNTPCT_EL0\n"
+			"isb\n"
+			: [reg] "=r" (val));
+	return val;
+}
+
+extern int profile_on;
+static inline void sched_out (struct vcpu* v)
+{
+	unsigned long now;
+	if (profile_on) {
+		now = xen_arm_read_pcounter();
+		v->ts_sched_out = now;
+		v->acc_sched_in += now - v->ts_sched_in;
+	}
+}
+
+static inline void sched_in (struct vcpu* v)
+{
+	unsigned long now;
+	if (profile_on) {	
+		now = xen_arm_read_pcounter();
+		v->ts_sched_in = now;
+		v->acc_sched_out += now - v->ts_sched_out;
+	}
+}
 /* 
  * The main function
  * - deschedule the current domain (scheduler independent).
@@ -1240,6 +1272,9 @@ static void schedule(void)
 
     ASSERT(next->runstate.state != RUNSTATE_running);
     vcpu_runstate_change(next, RUNSTATE_running, now);
+
+    sched_out(prev);
+    sched_in(next);
 
     /*
      * NB. Don't add any trace records from here until the actual context

@@ -255,12 +255,18 @@ struct vcpu
     uint64_t start_time;
     uint64_t acc_dom_time;
     uint64_t acc_do_trap_time;
+    uint64_t acc_sched_out;
+    uint64_t acc_sched_in;
 
     uint64_t ts_xen_entry;
     uint64_t ts_xen_exit;
     uint64_t ts_do_trap_xxx_exit;
     uint64_t ts_do_trap_xxx_entry;
     uint64_t ts_leave_hyp_tail;
+    uint64_t ts_sched_out;
+    uint64_t ts_sched_in;
+
+    uint64_t init_running_time;
 };
 
 /* Per-domain lock can be recursively acquired in fault handlers. */
