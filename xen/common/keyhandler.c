@@ -600,11 +600,11 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 				printk("Dom running time from stat: %"PRIu64"\n", dom_time_from_stat);
 			}
 			printk("Domain %u Summary\n", d->domain_id);
-			printk("Running:\t%12"PRIu64"\n", sum_sched_in);
-			printk("Stat:\t%12"PRIu64"\n", sum_dom_time_from_stat/20);
-			printk("Domain:\t%12"PRIu64"\n", sum_acc_dom_time);
+			printk("Elapsed:\t%12"PRIu64"\n", duration);
+			printk("Domain :\t%12"PRIu64"\n", sum_sched_in);
+		//	printk("Stat:\t%12"PRIu64"\n", sum_dom_time_from_stat/20);
+			printk("Guest:\t%12"PRIu64"\n", sum_acc_dom_time);
 			printk("Do_trap:\t%12"PRIu64"\n", sum_acc_do_trap_time);
-			printk("Total:\t%12"PRIu64"\n", duration);
 		}
 		rcu_read_unlock(&domlist_read_lock);
 	}
