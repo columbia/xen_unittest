@@ -101,6 +101,7 @@ lr      .req    x30             // link register
         .macro  entry, hyp, compat
         sub     sp, sp, #(UREGS_SPSR_el1 - UREGS_LR) /* CPSR, PC, SP, LR */
         push    x28, x29
+	read_pcounter x28
         push    x26, x27
         push    x24, x25
         push    x22, x23
@@ -199,14 +200,12 @@ guest_sync:
         entry   hyp=0, compat=0
         msr     daifclr, #2
         mov     x0, sp
-	read_pcounter x19
         bl      do_trap_hypervisor
         exit    hyp=0, compat=0
 
 guest_irq:
         entry   hyp=0, compat=0
         mov     x0, sp
-	read_pcounter x19
         bl      do_trap_irq
         exit    hyp=0, compat=0
 
