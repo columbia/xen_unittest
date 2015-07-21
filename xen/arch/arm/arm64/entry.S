@@ -134,6 +134,7 @@ lr      .req    x30             // link register
         mrs     x23, spsr_el2
         stp     x22, x23, [sp, #UREGS_PC]
 
+	read_pcounter x29
         .endm
 
         .macro  exit, hyp, compat
@@ -142,6 +143,7 @@ lr      .req    x30             // link register
 
         bl      leave_hypervisor_tail /* Disables interrupts on return */
 
+	read_pcounter x27
         exit_guest \compat
 
         .endif
@@ -248,7 +250,7 @@ return_from_trap:
 
         ldp     x21, x22, [sp, #UREGS_PC]       // load ELR, SPSR
 
-	add     x28, x0, #VCPU_ts_xen_exit	// x28 has addr of ts_xen_exit
+	mov	x28, x0
 	
         pop     x0, x1
         pop     x2, x3
@@ -267,9 +269,12 @@ return_from_trap:
         pop     x20, x21
         pop     x22, x23
         pop     x24, x25
-        pop     x26, x27
+
 	read_pcounter x29
-        str     x29, [x28]
+        str     x29, [x28, #VCPU_ts_xen_exit]
+	str     x27, [x28, #VCPU_ts_switch_to_dom_start]
+
+        pop     x26, x27
         pop     x28, x29
 
         ldr     lr, [sp], #(UREGS_SPSR_el1 - UREGS_LR) /* CPSR, PC, SP, LR */

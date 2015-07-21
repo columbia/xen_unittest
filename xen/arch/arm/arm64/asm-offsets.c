@@ -48,6 +48,7 @@ void __dummy__(void)
 
    OFFSET(VCPU_arch_saved_context, struct vcpu, arch.saved_context);
    OFFSET(VCPU_ts_xen_exit, struct vcpu, ts_xen_exit);
+   OFFSET(VCPU_ts_switch_to_dom_start, struct vcpu, ts_switch_to_dom_start);
 
    BLANK();
    OFFSET(INITINFO_stack, struct init_info, stack);

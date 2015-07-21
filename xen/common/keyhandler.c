@@ -540,6 +540,7 @@ static inline unsigned long xen_arm_read_pcounter(void)
 }
 
 
+struct domain *g_idle_domain;
 static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 {
 	struct domain *d;
@@ -549,7 +550,10 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 	unsigned long sum_acc_dom_time[2];
 	unsigned long sum_acc_do_trap_time[2];
 	unsigned long sum_dom_time_from_stat[2];
+	unsigned long sum_switch_to_xen[2];
+	unsigned long sum_switch_to_dom[2];
 	unsigned long sum_sched_in;
+	unsigned long sum_cnt_switch[2];
 	unsigned long duration;
 	unsigned long dom_time_from_stat;
 	struct vcpu_runstate_info runstate;
@@ -562,7 +566,6 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		profile_on = !profile_on;
 		stop_time = xen_arm_read_pcounter();
 		i = 0;
-		printk("here comes the stat\n");
 		rcu_read_lock(&domlist_read_lock);
 
 		sum_idle_time = 0;
@@ -577,6 +580,9 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 			duration = 0;
 			dom_time_from_stat = 0;
 			sum_dom_time_from_stat[d->domain_id] = 0;
+			sum_switch_to_xen[d->domain_id] = 0;
+			sum_switch_to_dom[d->domain_id] = 0;
+			sum_cnt_switch[d->domain_id] = 0;
 
 	   		for_each_vcpu ( d, v )
 			{
@@ -588,7 +594,10 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 
 				sum_acc_dom_time[d->domain_id] += v->acc_dom_time;
 				sum_acc_do_trap_time[d->domain_id] += v->acc_do_trap_time;
+				sum_switch_to_xen[d->domain_id] += v->acc_switch_to_xen;
+				sum_switch_to_dom[d->domain_id] += v->acc_switch_to_dom;
 				sum_sched_in += v->acc_sched_in;
+				sum_cnt_switch[d->domain_id] += v->cnt_switch_to_xen;
 				vcpu_runstate_get(v, &runstate);
 				dom_time_from_stat = runstate.time[RUNSTATE_running] - v->init_running_time;
 				sum_dom_time_from_stat[d->domain_id] += dom_time_from_stat;
@@ -602,6 +611,8 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 				printk("Domain: %u VCPU: %u\n", d->domain_id , v->vcpu_id);
 				//printk("Acc sched_in:\t %12"PRIu64"\n", v->acc_sched_in);
 				printk("Acc dom:\t %12"PRIu64"\n", v->acc_dom_time);
+				printk("Acc switch to Xen:\t %12"PRIu64"\n", v->acc_switch_to_xen);
+				printk("Acc switch to Dom:\t %12"PRIu64"\n", v->acc_switch_to_dom);
 				printk("Acc do_trap:\t %12"PRIu64"\n", v->acc_do_trap_time);
 				printk("Acc sched_out:\t %12"PRIu64"\n", v->acc_sched_out);
 				//printk("Acc sched_sum:\t %12"PRIu64"\n", v->acc_sched_out+v->acc_sched_in);
@@ -612,10 +623,18 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 			//printk("Domain :\t%12"PRIu64"\n", sum_sched_in);
 			printk("Domain:\t%12"PRIu64"\n", sum_dom_time_from_stat[d->domain_id]/20);
 			printk("Guest:\t%12"PRIu64"\n", sum_acc_dom_time[d->domain_id]);
-			printk("Do_trap:\t%12"PRIu64"\n", sum_acc_do_trap_time[d->domain_id]);
+			printk("Xen:\t%12"PRIu64"\n", sum_dom_time_from_stat[d->domain_id]/20 - sum_acc_dom_time[d->domain_id]);
+			printk("-Do_trap:\t%12"PRIu64"\n", sum_acc_do_trap_time[d->domain_id]);
+			printk("-to_Xen:\t%12"PRIu64"\n", sum_switch_to_xen[d->domain_id]);
+			printk("-to_Dom:\t%12"PRIu64"\n", sum_switch_to_dom[d->domain_id]);
+			printk("-rest:\t%12"PRIu64"\n", sum_dom_time_from_stat[d->domain_id]/20 - sum_acc_dom_time[d->domain_id] - sum_acc_do_trap_time[d->domain_id] - sum_switch_to_xen[d->domain_id]- sum_switch_to_dom[d->domain_id]);
+			printk("switch_cnt:\t%12"PRIu64"\n", sum_cnt_switch[d->domain_id]);
+			printk("to_xen each:\t%12"PRIu64"\n", sum_switch_to_xen[d->domain_id]/sum_cnt_switch[d->domain_id]);
+			printk("to_dom each:\t%12"PRIu64"\n", sum_switch_to_dom[d->domain_id]/sum_cnt_switch[d->domain_id]);
 		}
 
-		printk("Idle Domain time: %lu\n", (sum_idle_time - init_sum_idle_time)/20);
+		printk("Idle Dome:\t%12lu\n", (sum_idle_time - init_sum_idle_time)/20);
+
 		rcu_read_unlock(&domlist_read_lock);
 	}
 	else
@@ -640,6 +659,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 				v->acc_sched_out = 0;
 				v->acc_sched_in = 0;
 				v->start_time = start_time;
+				v->cnt_switch_to_xen = 0;
 				vcpu_runstate_get(v, &runstate);
 				v->init_running_time= runstate.time[RUNSTATE_running];
 			}
@@ -649,6 +669,14 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		init_sum_idle_time = 0;
 		for (i = 0; i < nr_cpu_ids; i++)
 			init_sum_idle_time += get_cpu_idle_time(i);
+
+		d = g_idle_domain;
+		for_each_vcpu ( d, v )
+		{
+			v->ts_xen_exit = start_time;
+			v->ts_xen_entry = start_time;
+			v->acc_dom_time = 0;
+		}
 
 		rcu_read_unlock(&domlist_read_lock);
 

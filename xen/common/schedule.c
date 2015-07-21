@@ -1405,6 +1405,7 @@ static struct notifier_block cpu_schedule_nfb = {
 };
 
 /* Initialise the data structures. */
+extern struct domain *g_idle_domain;
 void __init scheduler_init(void)
 {
     struct domain *idle_domain;
@@ -1459,6 +1460,7 @@ void __init scheduler_init(void)
     idle_domain->max_vcpus = nr_cpu_ids;
     if ( alloc_vcpu(idle_domain, 0, 0) == NULL )
         BUG();
+	g_idle_domain = idle_domain;
     if ( ops.alloc_pdata &&
          !(this_cpu(schedule_data).sched_priv = ops.alloc_pdata(&ops, 0)) )
         BUG();
