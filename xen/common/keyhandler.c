@@ -546,66 +546,76 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 	struct vcpu   *v;
 	unsigned long start_time;
 	unsigned long stop_time;
-	unsigned long sum_acc_dom_time;
-	unsigned long sum_acc_do_trap_time;
-	unsigned long sum_dom_time_from_stat;
+	unsigned long sum_acc_dom_time[2];
+	unsigned long sum_acc_do_trap_time[2];
+	unsigned long sum_dom_time_from_stat[2];
 	unsigned long sum_sched_in;
 	unsigned long duration;
 	unsigned long dom_time_from_stat;
 	struct vcpu_runstate_info runstate;
+	unsigned int i;
+	static unsigned long init_sum_idle_time;
+	static unsigned long sum_idle_time;
 
 	if (profile_on)
 	{
 		profile_on = !profile_on;
 		stop_time = xen_arm_read_pcounter();
+		i = 0;
 		printk("here comes the stat\n");
 		rcu_read_lock(&domlist_read_lock);
 
+		sum_idle_time = 0;
+		for (i = 0; i < nr_cpu_ids; i++)
+			sum_idle_time += get_cpu_idle_time(i);
+
 		for_each_domain ( d )
 		{
-			sum_acc_dom_time = 0;
-			sum_acc_do_trap_time = 0;
+			sum_acc_dom_time[d->domain_id] = 0;
+			sum_acc_do_trap_time[d->domain_id] = 0;
 			sum_sched_in = 0;
 			duration = 0;
 			dom_time_from_stat = 0;
-			sum_dom_time_from_stat = 0;
+			sum_dom_time_from_stat[d->domain_id] = 0;
 
-        		for_each_vcpu ( d, v )
+	   		for_each_vcpu ( d, v )
 			{
 				duration = stop_time - v->start_time;
-
-				if (v->ts_sched_out > v->ts_sched_in) { /* vcpu not running */
-					v->acc_sched_out += stop_time - v->ts_sched_out;
-				} else {
-					v->acc_sched_in += stop_time - v->ts_sched_in;
-				}
 
 				if (v->ts_xen_exit > v->ts_xen_entry) { /* vcpu NOT in EL2 */
 					v->acc_dom_time += stop_time - v->ts_xen_exit;
 				}
 
-				printk("Domain: %u VCPU: %u\n", d->domain_id , v->vcpu_id);
-				printk("Acc sched_in:\t %12"PRIu64"\n", v->acc_sched_in);
-				printk("Acc dom:\t %12"PRIu64"\n", v->acc_dom_time);
-				printk("Acc do_trap:\t %12"PRIu64"\n", v->acc_do_trap_time);
-				printk("Acc sched_out:\t %12"PRIu64"\n", v->acc_sched_out);
-				printk("Acc sched_sum:\t %12"PRIu64"\n", v->acc_sched_out+v->acc_sched_in);
-				sum_acc_dom_time += v->acc_dom_time;
-				sum_acc_do_trap_time += v->acc_do_trap_time;
+				sum_acc_dom_time[d->domain_id] += v->acc_dom_time;
+				sum_acc_do_trap_time[d->domain_id] += v->acc_do_trap_time;
 				sum_sched_in += v->acc_sched_in;
 				vcpu_runstate_get(v, &runstate);
 				dom_time_from_stat = runstate.time[RUNSTATE_running] - v->init_running_time;
+				sum_dom_time_from_stat[d->domain_id] += dom_time_from_stat;
+			}
+		}
 
-				sum_dom_time_from_stat += dom_time_from_stat;
+		for_each_domain ( d )
+		{
+        		for_each_vcpu ( d, v )
+			{
+				printk("Domain: %u VCPU: %u\n", d->domain_id , v->vcpu_id);
+				//printk("Acc sched_in:\t %12"PRIu64"\n", v->acc_sched_in);
+				printk("Acc dom:\t %12"PRIu64"\n", v->acc_dom_time);
+				printk("Acc do_trap:\t %12"PRIu64"\n", v->acc_do_trap_time);
+				printk("Acc sched_out:\t %12"PRIu64"\n", v->acc_sched_out);
+				//printk("Acc sched_sum:\t %12"PRIu64"\n", v->acc_sched_out+v->acc_sched_in);
 				printk("Dom running time from stat: %"PRIu64"\n", dom_time_from_stat);
 			}
 			printk("Domain %u Summary\n", d->domain_id);
 			printk("Elapsed:\t%12"PRIu64"\n", duration);
-			printk("Domain :\t%12"PRIu64"\n", sum_sched_in);
-		//	printk("Stat:\t%12"PRIu64"\n", sum_dom_time_from_stat/20);
-			printk("Guest:\t%12"PRIu64"\n", sum_acc_dom_time);
-			printk("Do_trap:\t%12"PRIu64"\n", sum_acc_do_trap_time);
+			//printk("Domain :\t%12"PRIu64"\n", sum_sched_in);
+			printk("Domain:\t%12"PRIu64"\n", sum_dom_time_from_stat[d->domain_id]/20);
+			printk("Guest:\t%12"PRIu64"\n", sum_acc_dom_time[d->domain_id]);
+			printk("Do_trap:\t%12"PRIu64"\n", sum_acc_do_trap_time[d->domain_id]);
 		}
+
+		printk("Idle Domain time: %lu\n", (sum_idle_time - init_sum_idle_time)/20);
 		rcu_read_unlock(&domlist_read_lock);
 	}
 	else
@@ -634,6 +644,11 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 				v->init_running_time= runstate.time[RUNSTATE_running];
 			}
 		}
+
+		i = 0;
+		init_sum_idle_time = 0;
+		for (i = 0; i < nr_cpu_ids; i++)
+			init_sum_idle_time += get_cpu_idle_time(i);
 
 		rcu_read_unlock(&domlist_read_lock);
 
