@@ -143,7 +143,7 @@ lr      .req    x30             // link register
 
         bl      leave_hypervisor_tail /* Disables interrupts on return */
 
-	read_pcounter x27
+	read_pcounter x29
         exit_guest \compat
 
         .endif
@@ -270,9 +270,9 @@ return_from_trap:
         pop     x22, x23
         pop     x24, x25
 
-	read_pcounter x29
-        str     x29, [x28, #VCPU_ts_xen_exit]
-	str     x27, [x28, #VCPU_ts_switch_to_dom_start]
+	read_pcounter x27
+        str     x27, [x28, #VCPU_ts_xen_exit]
+	str     x29, [x28, #VCPU_ts_switch_to_dom_start]
 
         pop     x26, x27
         pop     x28, x29
