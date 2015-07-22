@@ -2024,21 +2024,21 @@ extern int profile_on;
 static inline void account_stat_entry(struct cpu_user_regs *regs)
 {
     if (profile_on && guest_mode(regs)) {
-	    unsigned long switch_entry = 0;
-	    unsigned long switch_exit= 0;
+	    unsigned long switch_to_xen_start= 0;
+	    unsigned long switch_to_xen_end= 0;
 	    current->ts_do_trap_xxx_entry = xen_arm_read_pcounter();
 	    asm volatile(
 	    		"mov %[entry], x28\n\t"
 	    		"mov %[exit], x29\n\t":
-			[entry] "=r" (switch_entry),
-			[exit] "=r" (switch_exit): :
+			[entry] "=r" (switch_to_xen_start),
+			[exit] "=r" (switch_to_xen_end): :
 			"x28", "x29");
-	    current->acc_switch_to_xen += switch_exit - switch_entry;
+	    current->acc_switch_to_xen += switch_to_xen_end - switch_to_xen_start;
 	    current->cnt_switch_to_xen += 1;
+	    current->ts_xen_entry = switch_to_xen_start;
+
 	    current->acc_switch_to_dom += current->ts_xen_exit - current->ts_switch_to_dom_start;
-	    current->ts_xen_entry = switch_entry;
-	    current->acc_dom_time += current->ts_xen_entry - current->ts_xen_exit;
-	//	printk("[p:%u, d: %u, v:%u] Xen entry: %"PRIu64", exit: %"PRIu64", diff: %"PRIu64", sum: %"PRIu64"\n", smp_processor_id(), current->domain->domain_id, current->vcpu_id,  current->ts_xen_entry, current->ts_leave_hyp_tail ,current->ts_xen_entry- current->ts_leave_hyp_tail, current->acc_dom_time);
+	    current->acc_guest_time += current->ts_xen_entry - current->ts_xen_exit;
     }
 }
 
@@ -2200,7 +2200,6 @@ asmlinkage void leave_hypervisor_tail(void)
         local_irq_disable();
         if (!softirq_pending(smp_processor_id())) {
             gic_inject();
-	    current->ts_leave_hyp_tail = xen_arm_read_pcounter();
             return;
         }
         local_irq_enable();

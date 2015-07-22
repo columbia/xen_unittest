@@ -251,12 +251,9 @@ struct vcpu
 
     struct arch_vcpu arch;
 
-    uint64_t acc_exe_time;
-    uint64_t start_time;
-    uint64_t acc_dom_time;
+    /* For exit analysis */
+    uint64_t acc_guest_time;
     uint64_t acc_do_trap_time;
-    uint64_t acc_sched_out;
-    uint64_t acc_sched_in;
     uint64_t acc_switch_to_xen;
     uint64_t acc_switch_to_dom;
 
@@ -265,10 +262,6 @@ struct vcpu
     uint64_t ts_switch_to_dom_start;
     uint64_t ts_do_trap_xxx_exit;
     uint64_t ts_do_trap_xxx_entry;
-    uint64_t ts_leave_hyp_tail;
-    uint64_t ts_sched_out;
-    uint64_t ts_sched_in;
-    
 
     uint64_t cnt_switch_to_xen;
 
@@ -479,6 +472,14 @@ struct domain
     /* vNUMA topology accesses are protected by rwlock. */
     rwlock_t vnuma_rwlock;
     struct vnuma_info *vnuma;
+
+    uint64_t acc_domain_time; 	/* ns */
+    uint64_t acc_guest_time; 	/* arch counter */
+    uint64_t acc_do_trap_time;	/* arch counter */
+    uint64_t acc_switch_to_xen;	/* arch counter */
+    uint64_t acc_switch_to_dom;	/* arch counter */
+
+    uint64_t cnt_switch_to_xen;
 };
 
 struct domain_setup_info

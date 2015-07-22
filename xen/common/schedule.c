@@ -1166,22 +1166,6 @@ static inline unsigned long xen_arm_read_pcounter(void)
 	return val;
 }
 
-extern int profile_on;
-static inline void sched_out (struct vcpu* v, unsigned long stat_now)
-{
-	if (profile_on) {
-		v->ts_sched_out = stat_now;
-		v->acc_sched_in += stat_now - v->ts_sched_in;
-	}
-}
-
-static inline void sched_in (struct vcpu* v, unsigned long stat_now)
-{
-	if (profile_on) {	
-		v->ts_sched_in = stat_now;
-		v->acc_sched_out += stat_now- v->ts_sched_out;
-	}
-}
 /* 
  * The main function
  * - deschedule the current domain (scheduler independent).
@@ -1191,7 +1175,6 @@ static void schedule(void)
 {
     struct vcpu          *prev = current, *next = NULL;
     s_time_t              now = NOW();
-    unsigned long	 stat_now = xen_arm_read_pcounter();
     struct scheduler     *sched;
     unsigned long        *tasklet_work = &this_cpu(tasklet_work_to_do);
     bool_t                tasklet_work_scheduled = 0;
@@ -1269,9 +1252,6 @@ static void schedule(void)
 
     ASSERT(next->runstate.state != RUNSTATE_running);
     vcpu_runstate_change(next, RUNSTATE_running, now);
-
-    sched_out(prev, stat_now);
-    sched_in(next, stat_now);
 
     /*
      * NB. Don't add any trace records from here until the actual context
