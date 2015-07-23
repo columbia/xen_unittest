@@ -1172,6 +1172,7 @@ static inline unsigned long xen_arm_read_pcounter(void)
  * - pick a new domain (scheduler dependent).
  */
  extern unsigned long acc_ctx[NR_CPUS];
+ extern unsigned long cnt_ctx[NR_CPUS];
 static void schedule(void)
 {
     struct vcpu          *prev = current, *next = NULL;
@@ -1279,6 +1280,7 @@ static void schedule(void)
     diff = xen_arm_read_pcounter() - prev->ts_ctx_start;
     next->acc_ctx += diff;
     acc_ctx[cpu] += diff;
+    cnt_ctx[cpu] += 1;
 }
 
 void context_saved(struct vcpu *prev)

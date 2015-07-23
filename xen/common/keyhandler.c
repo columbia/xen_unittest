@@ -542,6 +542,7 @@ static inline unsigned long xen_arm_read_pcounter(void)
 
 struct domain *g_idle_domain;
 unsigned long acc_ctx[NR_CPUS];
+unsigned long cnt_ctx[NR_CPUS];
 
 /* This function is called with rcu_read_lock held */
 static void update_stat(unsigned long stop_time)
@@ -656,6 +657,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 	static unsigned long init_sum_idle_time;
 	static unsigned long sum_idle_time;
 	unsigned long total_switch = 0;
+	unsigned long total_switch_cnt = 0;
 
 	if (profile_on)
 	{
@@ -667,6 +669,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 			sum_idle_time += get_cpu_idle_time(i);
 //			idle_switch_time += g_idle_domain->vcpu[i]->acc_ctx;
 			total_switch += acc_ctx[i];
+			total_switch_cnt += cnt_ctx[i];
 		}
 
 		rcu_read_lock(&domlist_read_lock);
@@ -678,6 +681,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 
 		printk("Idle Dome:\t%12lu\n", (sum_idle_time - init_sum_idle_time)/20);
 		printk("Total Switch:\t%12lu\n", total_switch);
+		printk("Total Switch cnt:\t%12lu\n", total_switch_cnt);
 	}
 	else
 	{
@@ -695,6 +699,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 //			idle_vcpu[i]->acc_ctx = 0;
 			/* g_idle_domain->vcpu[i]->acc_ctx = 0;*/
 			acc_ctx[i] = 0;
+			cnt_ctx[i] = 0;
 		}
 
 		profile_on = !profile_on;
