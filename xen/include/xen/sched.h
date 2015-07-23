@@ -256,12 +256,17 @@ struct vcpu
     uint64_t acc_do_trap_time;
     uint64_t acc_switch_to_xen;
     uint64_t acc_switch_to_dom;
+    uint64_t acc_ctx_vcpu;
+    uint64_t acc_ctx_callee;
+    uint64_t acc_ctx;
 
     uint64_t ts_xen_entry;
     uint64_t ts_xen_exit;
     uint64_t ts_switch_to_dom_start;
     uint64_t ts_do_trap_xxx_exit;
     uint64_t ts_do_trap_xxx_entry;
+    uint64_t ts_callee_start;
+    uint64_t ts_ctx_start;
 
     uint64_t cnt_switch_to_xen;
 
@@ -478,6 +483,9 @@ struct domain
     uint64_t acc_do_trap_time;	/* arch counter */
     uint64_t acc_switch_to_xen;	/* arch counter */
     uint64_t acc_switch_to_dom;	/* arch counter */
+    uint64_t acc_ctx_callee;
+    uint64_t acc_ctx_vcpu;
+    uint64_t acc_ctx;
 
     uint64_t cnt_switch_to_xen;
 };
@@ -688,7 +696,7 @@ void sync_local_execstate(void);
  * implementing lazy context switching, it suffices to ensure that invoking
  * sync_vcpu_execstate() will switch and commit @prev's state.
  */
-void context_switch(
+struct vcpu* context_switch(
     struct vcpu *prev, 
     struct vcpu *next);
 

@@ -238,11 +238,25 @@ static void update_runstate_area(struct vcpu *v)
     __copy_to_guest(runstate_guest(v), &v->runstate, 1);
 }
 
+static inline unsigned long xen_arm_read_pcounter(void)
+{
+	unsigned long val;
+
+	asm volatile(
+			"isb\n"
+			"mrs %0, CNTPCT_EL0\n"
+			"isb\n"
+			: [reg] "=r" (val));
+	return val;
+}
+
 static void schedule_tail(struct vcpu *prev)
 {
+	unsigned long ctx_vcpu_start = xen_arm_read_pcounter();
     ctxt_switch_from(prev);
 
     ctxt_switch_to(current);
+    current->acc_ctx_vcpu += xen_arm_read_pcounter() - ctx_vcpu_start;
 
     local_irq_enable();
 
@@ -268,7 +282,7 @@ static void continue_new_vcpu(struct vcpu *prev)
 
 }
 
-void context_switch(struct vcpu *prev, struct vcpu *next)
+struct vcpu* context_switch(struct vcpu *prev, struct vcpu *next)
 {
     ASSERT(local_irq_is_enabled());
     ASSERT(prev != next);
@@ -281,9 +295,13 @@ void context_switch(struct vcpu *prev, struct vcpu *next)
 
     set_current(next);
 
+    prev->ts_callee_start = xen_arm_read_pcounter(); 
     prev = __context_switch(prev, next);
+    current->acc_ctx_callee += xen_arm_read_pcounter() - prev->ts_callee_start; 
 
     schedule_tail(prev);
+
+    return prev;
 }
 
 void continue_running(struct vcpu *same)

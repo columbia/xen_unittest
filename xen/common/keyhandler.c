@@ -541,6 +541,7 @@ static inline unsigned long xen_arm_read_pcounter(void)
 
 
 struct domain *g_idle_domain;
+unsigned long acc_ctx[NR_CPUS];
 
 /* This function is called with rcu_read_lock held */
 static void update_stat(unsigned long stop_time)
@@ -555,7 +556,10 @@ static void update_stat(unsigned long stop_time)
 		d->acc_do_trap_time = 0;
 		d->acc_switch_to_xen = 0;
 		d->acc_switch_to_dom = 0;
+		d->acc_ctx_callee = 0;
+		d->acc_ctx_vcpu = 0;
 		d->cnt_switch_to_xen = 0;
+		d->acc_ctx = 0;
 
 		for_each_vcpu ( d, v )
 		{
@@ -563,7 +567,6 @@ static void update_stat(unsigned long stop_time)
 			d->acc_domain_time += runstate.time[RUNSTATE_running] \
 					      - v->init_running_time;
 
-			/* TODO: beginning? */
 			if (v->ts_xen_exit > v->ts_xen_entry)  /* vcpu NOT in EL2 */
 				v->acc_guest_time += stop_time - v->ts_xen_exit;
 			d->acc_guest_time += v->acc_guest_time;
@@ -572,6 +575,9 @@ static void update_stat(unsigned long stop_time)
 			d->acc_switch_to_xen += v->acc_switch_to_xen;
 			d->acc_switch_to_dom += v->acc_switch_to_dom;
 			d->cnt_switch_to_xen += v->cnt_switch_to_xen;
+			d->acc_ctx_callee += v->acc_ctx_callee;
+			d->acc_ctx_vcpu += v->acc_ctx_vcpu;
+			d->acc_ctx += v->acc_ctx;
 		}
 	}
 }
@@ -581,6 +587,7 @@ static void print_stat(unsigned long duration)
 	struct domain *d;
 	struct vcpu   *v;
 	unsigned long xen_time;
+
 	for_each_domain ( d )
 	{
 		for_each_vcpu ( d, v )
@@ -598,12 +605,15 @@ static void print_stat(unsigned long duration)
 		xen_time = d->acc_domain_time/20 - d->acc_guest_time;
 		printk("Xen:\t%12"PRIu64"\n", xen_time);
 		printk("-Do_trap:\t%12"PRIu64"\n", d->acc_do_trap_time);
-		printk("-to_Xen:\t%12"PRIu64"\n", d->acc_switch_to_xen);
-		printk("-to_Dom:\t%12"PRIu64"\n", d->acc_switch_to_dom);
-		printk("-rest:\t%12"PRIu64"\n", xen_time - d->acc_do_trap_time - d->acc_switch_to_xen - d->acc_switch_to_dom);
+		printk("-Swi_Xen:\t%12"PRIu64"\n", d->acc_switch_to_xen + d->acc_switch_to_dom);
+		printk("--to_Xen:\t%12"PRIu64"\n", d->acc_switch_to_xen);
+		printk("--to_Dom:\t%12"PRIu64"\n", d->acc_switch_to_dom);
+		printk("-Swi_ctx:\t%12"PRIu64"\n", d->acc_ctx);
+		printk("-rest:\t%12"PRIu64"\n", xen_time - d->acc_do_trap_time - \
+			d->acc_switch_to_xen - d->acc_switch_to_dom - d->acc_ctx);
 		printk("switch_cnt:\t%12"PRIu64"\n", d->cnt_switch_to_xen);
-		printk("to_xen each:\t%12"PRIu64"\n", d->acc_switch_to_xen/d->cnt_switch_to_xen);
-		printk("to_dom each:\t%12"PRIu64"\n", d->acc_switch_to_dom/d->cnt_switch_to_xen);
+		printk("to_xen:\t%12"PRIu64"/10\n", d->acc_switch_to_xen*10 / d->cnt_switch_to_xen);
+		printk("to_dom:\t%12"PRIu64"/10\n", d->acc_switch_to_dom*10 / d->cnt_switch_to_xen);
 	}
 }
 
@@ -623,6 +633,11 @@ static void init_stat(unsigned long start_time)
 
 			v->acc_guest_time = 0;
 			v->acc_do_trap_time = 0;
+			v->acc_switch_to_xen = 0;
+			v->acc_switch_to_dom = 0;
+			v->acc_ctx_callee = 0;
+			v->acc_ctx_vcpu = 0;
+			v->acc_ctx = 0;
 			v->cnt_switch_to_xen = 0;
 
 			vcpu_runstate_get(v, &runstate);
@@ -640,6 +655,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 	unsigned int i;
 	static unsigned long init_sum_idle_time;
 	static unsigned long sum_idle_time;
+	unsigned long total_switch = 0;
 
 	if (profile_on)
 	{
@@ -647,8 +663,11 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		stop_time = xen_arm_read_pcounter();
 
 		sum_idle_time = 0;
-		for (i = 0; i < nr_cpu_ids; i++)
+		for (i = 0; i < nr_cpu_ids; i++) {
 			sum_idle_time += get_cpu_idle_time(i);
+//			idle_switch_time += g_idle_domain->vcpu[i]->acc_ctx;
+			total_switch += acc_ctx[i];
+		}
 
 		rcu_read_lock(&domlist_read_lock);
 				
@@ -658,6 +677,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		rcu_read_unlock(&domlist_read_lock);
 
 		printk("Idle Dome:\t%12lu\n", (sum_idle_time - init_sum_idle_time)/20);
+		printk("Total Switch:\t%12lu\n", total_switch);
 	}
 	else
 	{
@@ -670,8 +690,12 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		rcu_read_unlock(&domlist_read_lock);
 
 		init_sum_idle_time = 0;
-		for (i = 0; i < nr_cpu_ids; i++)
+		for (i = 0; i < nr_cpu_ids; i++) {
 			init_sum_idle_time += get_cpu_idle_time(i);
+//			idle_vcpu[i]->acc_ctx = 0;
+			/* g_idle_domain->vcpu[i]->acc_ctx = 0;*/
+			acc_ctx[i] = 0;
+		}
 
 		profile_on = !profile_on;
 	}

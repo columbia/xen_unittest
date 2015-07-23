@@ -1171,6 +1171,7 @@ static inline unsigned long xen_arm_read_pcounter(void)
  * - deschedule the current domain (scheduler independent).
  * - pick a new domain (scheduler dependent).
  */
+ extern unsigned long acc_ctx[NR_CPUS];
 static void schedule(void)
 {
     struct vcpu          *prev = current, *next = NULL;
@@ -1182,6 +1183,7 @@ static void schedule(void)
     spinlock_t           *lock;
     struct task_slice     next_slice;
     int cpu = smp_processor_id();
+    unsigned long diff;
 
     ASSERT_NOT_IN_ATOMIC();
 
@@ -1272,7 +1274,11 @@ static void schedule(void)
 
     vcpu_periodic_timer_work(next);
 
-    context_switch(prev, next);
+	prev->ts_ctx_start = xen_arm_read_pcounter();
+    prev = context_switch(prev, next);
+    diff = xen_arm_read_pcounter() - prev->ts_ctx_start;
+    next->acc_ctx += diff;
+    acc_ctx[cpu] += diff;
 }
 
 void context_saved(struct vcpu *prev)
