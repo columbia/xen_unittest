@@ -174,6 +174,21 @@ void vcpu_runstate_get(struct vcpu *v, struct vcpu_runstate_info *runstate)
         vcpu_schedule_unlock_irq(lock, v);
 }
 
+void reset_idle_switch_time(unsigned int cpu)
+{
+	struct vcpu *v = idle_vcpu[cpu];
+	if ( cpu_online(cpu) && v )
+		v->acc_ctx = 0;;
+}
+
+uint64_t get_idle_switch_time(unsigned int cpu)
+{
+	struct vcpu *v = idle_vcpu[cpu];
+	if ( cpu_online(cpu) && v )
+		return v->acc_ctx;
+	return 0;
+
+}
 uint64_t get_cpu_idle_time(unsigned int cpu)
 {
     struct vcpu_runstate_info state = { 0 };

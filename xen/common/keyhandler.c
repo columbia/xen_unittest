@@ -586,11 +586,11 @@ static void update_stat(unsigned long stop_time)
 static void print_stat(unsigned long duration)
 {
 	struct domain *d;
-	struct vcpu   *v;
 	unsigned long xen_time;
 
 	for_each_domain ( d )
 	{
+		/*
 		for_each_vcpu ( d, v )
 		{
 			printk("Domain: %u VCPU: %u\n", d->domain_id , v->vcpu_id);
@@ -599,6 +599,7 @@ static void print_stat(unsigned long duration)
 			printk("Acc switch to Dom:\t %12"PRIu64"\n", v->acc_switch_to_dom);
 			printk("Acc do_trap:\t %12"PRIu64"\n", v->acc_do_trap_time);
 		}
+		*/
 		printk("Domain %u Summary\n", d->domain_id);
 		printk("Elapsed:\t%12"PRIu64"\n", duration);
 		printk("Domain:\t%12"PRIu64"\n", d->acc_domain_time/20);
@@ -658,6 +659,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 	static unsigned long sum_idle_time;
 	unsigned long total_switch = 0;
 	unsigned long total_switch_cnt = 0;
+	unsigned long idle_switch_time = 0;
 
 	if (profile_on)
 	{
@@ -665,9 +667,10 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		stop_time = xen_arm_read_pcounter();
 
 		sum_idle_time = 0;
+		idle_switch_time = 0;
 		for (i = 0; i < nr_cpu_ids; i++) {
 			sum_idle_time += get_cpu_idle_time(i);
-//			idle_switch_time += g_idle_domain->vcpu[i]->acc_ctx;
+			idle_switch_time += get_idle_switch_time(i);
 			total_switch += acc_ctx[i];
 			total_switch_cnt += cnt_ctx[i];
 		}
@@ -680,6 +683,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		rcu_read_unlock(&domlist_read_lock);
 
 		printk("Idle Dome:\t%12lu\n", (sum_idle_time - init_sum_idle_time)/20);
+		printk("Idle Switch:\t%12lu\n", idle_switch_time);
 		printk("Total Switch:\t%12lu\n", total_switch);
 		printk("Total Switch cnt:\t%12lu\n", total_switch_cnt);
 	}
@@ -696,8 +700,7 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 		init_sum_idle_time = 0;
 		for (i = 0; i < nr_cpu_ids; i++) {
 			init_sum_idle_time += get_cpu_idle_time(i);
-//			idle_vcpu[i]->acc_ctx = 0;
-			/* g_idle_domain->vcpu[i]->acc_ctx = 0;*/
+			reset_idle_switch_time(i);
 			acc_ctx[i] = 0;
 			cnt_ctx[i] = 0;
 		}
