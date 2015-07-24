@@ -610,12 +610,12 @@ static void print_stat(unsigned long duration)
 		printk("-Swi_Xen:\t%12"PRIu64"\n", d->acc_switch_to_xen + d->acc_switch_to_dom);
 		printk("--to_Xen:\t%12"PRIu64"\n", d->acc_switch_to_xen);
 		printk("--to_Dom:\t%12"PRIu64"\n", d->acc_switch_to_dom);
-		printk("-Swi_ctx:\t%12"PRIu64"\n", d->acc_ctx);
+		printk("-Swi_VCPU:\t%12"PRIu64"\n", d->acc_ctx);
 		printk("-rest:\t%12"PRIu64"\n", xen_time - d->acc_do_trap_time - \
 			d->acc_switch_to_xen - d->acc_switch_to_dom - d->acc_ctx);
-		printk("switch_cnt:\t%12"PRIu64"\n", d->cnt_switch_to_xen);
-		printk("to_xen:\t%12"PRIu64"/10\n", d->acc_switch_to_xen*10 / d->cnt_switch_to_xen);
-		printk("to_dom:\t%12"PRIu64"/10\n", d->acc_switch_to_dom*10 / d->cnt_switch_to_xen);
+		printk("Swi_Xen_cnt:\t%12"PRIu64"\n", d->cnt_switch_to_xen);
+		printk("to_xen:\t%9"PRIu64"/10 per switch\n", d->acc_switch_to_xen*10 / d->cnt_switch_to_xen);
+		printk("to_dom:\t%9"PRIu64"/10 per switch\n", d->acc_switch_to_dom*10 / d->cnt_switch_to_xen);
 	}
 }
 
@@ -682,10 +682,10 @@ static void toggle_profile(unsigned char key, struct cpu_user_regs *regs)
 
 		rcu_read_unlock(&domlist_read_lock);
 
-		printk("Idle Dome:\t%12lu\n", (sum_idle_time - init_sum_idle_time)/20);
-		printk("Idle Switch:\t%12lu\n", idle_switch_time);
-		printk("Total Switch:\t%12lu\n", total_switch);
-		printk("Total Switch cnt:\t%12lu\n", total_switch_cnt);
+		printk("Idle Dom:\t%12lu\n", (sum_idle_time - init_sum_idle_time)/20);
+		printk("Idle Swi:\t%12lu\n", idle_switch_time);
+		printk("VCPU Swi:\t%12lu\n", total_switch);
+		printk("VCPU Swi cnt:\t%12lu\n", total_switch_cnt);
 	}
 	else
 	{
