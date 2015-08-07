@@ -561,6 +561,8 @@ static void update_stat(unsigned long stop_time)
 		d->acc_ctx_vcpu = 0;
 		d->cnt_switch_to_xen = 0;
 		d->acc_ctx = 0;
+		d->cnt_irq = 0;
+		d->acc_irq = 0;
 
 		for_each_vcpu ( d, v )
 		{
@@ -579,6 +581,8 @@ static void update_stat(unsigned long stop_time)
 			d->acc_ctx_callee += v->acc_ctx_callee;
 			d->acc_ctx_vcpu += v->acc_ctx_vcpu;
 			d->acc_ctx += v->acc_ctx;
+			d->acc_irq += v->acc_irq;
+			d->cnt_irq += v->cnt_irq;
 		}
 	}
 }
@@ -616,6 +620,8 @@ static void print_stat(unsigned long duration)
 		printk("Swi_Xen_cnt:\t%12"PRIu64"\n", d->cnt_switch_to_xen);
 		printk("to_xen:\t%9"PRIu64"/10 per switch\n", d->acc_switch_to_xen*10 / d->cnt_switch_to_xen);
 		printk("to_dom:\t%9"PRIu64"/10 per switch\n", d->acc_switch_to_dom*10 / d->cnt_switch_to_xen);
+		printk("IRQ:\t%9"PRIu64" time\n", d->acc_irq);
+		printk("IRQ:\t%9"PRIu64" count\n", d->cnt_irq);
 	}
 }
 
@@ -640,7 +646,9 @@ static void init_stat(unsigned long start_time)
 			v->acc_ctx_callee = 0;
 			v->acc_ctx_vcpu = 0;
 			v->acc_ctx = 0;
+			v->acc_irq = 0;
 			v->cnt_switch_to_xen = 0;
+			v->cnt_irq = 0;
 
 			vcpu_runstate_get(v, &runstate);
 			v->init_running_time= runstate.time[RUNSTATE_running];

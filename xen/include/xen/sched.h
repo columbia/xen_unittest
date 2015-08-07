@@ -259,6 +259,7 @@ struct vcpu
     uint64_t acc_ctx_vcpu;
     uint64_t acc_ctx_callee;
     uint64_t acc_ctx;
+    uint64_t acc_irq;
 
     uint64_t ts_xen_entry;
     uint64_t ts_xen_exit;
@@ -269,6 +270,7 @@ struct vcpu
     uint64_t ts_ctx_start;
 
     uint64_t cnt_switch_to_xen;
+    uint64_t cnt_irq;
 
     uint64_t init_running_time;
 };
@@ -486,8 +488,10 @@ struct domain
     uint64_t acc_ctx_callee;
     uint64_t acc_ctx_vcpu;
     uint64_t acc_ctx;
+    uint64_t acc_irq;
 
     uint64_t cnt_switch_to_xen;
+    uint64_t cnt_irq;
 };
 
 struct domain_setup_info

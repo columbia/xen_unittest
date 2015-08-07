@@ -2021,7 +2021,7 @@ static inline unsigned long xen_arm_read_pcounter(void)
 
 extern int profile_on;
 
-static inline void account_stat_entry(struct cpu_user_regs *regs)
+static inline void account_stat_entry(struct cpu_user_regs *regs, int irq)
 {
     if (profile_on && guest_mode(regs)) {
 	    unsigned long switch_to_xen_start= 0;
@@ -2035,6 +2035,10 @@ static inline void account_stat_entry(struct cpu_user_regs *regs)
 			"x28", "x29");
 	    current->acc_switch_to_xen += switch_to_xen_end - switch_to_xen_start;
 	    current->cnt_switch_to_xen += 1;
+            if (irq) {
+                    current->acc_irq += switch_to_xen_end - switch_to_xen_start;
+                    current->cnt_irq += 1; 
+            }
 	    current->ts_xen_entry = switch_to_xen_start;
 
 	    current->acc_switch_to_dom += current->ts_xen_exit - current->ts_switch_to_dom_start;
@@ -2055,7 +2059,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
 
-    account_stat_entry(regs);
+    account_stat_entry(regs, 0);
     enter_hypervisor_head(regs);
 
     /*
@@ -2180,7 +2184,7 @@ out:
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
-	account_stat_entry(regs);
+	account_stat_entry(regs, 1);
 
 	enter_hypervisor_head(regs);
 	gic_interrupt(regs, 0);
