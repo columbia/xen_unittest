@@ -242,6 +242,7 @@ static int vgic_v2_to_sgi(struct vcpu *v, register_t sgir)
     virq = (sgir & GICD_SGI_INTID_MASK);
     vcpu_mask = (sgir & GICD_SGI_TARGET_MASK) >> GICD_SGI_TARGET_SHIFT;
 
+    //current->cnt_irq += 1;
     /* Map GIC sgi value to enum value */
     switch ( irqmode )
     {
