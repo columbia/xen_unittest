@@ -18,6 +18,9 @@
 #include <xsm/xsm.h>
 
 extern long
+do_dummy_hyp(void);
+
+extern long
 do_ni_hypercall(
     void);
 

@@ -224,6 +224,10 @@ void __init do_initcalls(void)
 
 #endif
 
+DO(dummy_hyp)(void)
+{
+	return 135792468;
+}
 /*
  * Simple hypercalls.
  */
