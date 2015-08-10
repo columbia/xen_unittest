@@ -527,12 +527,13 @@ static struct keyhandler do_debug_key_keyhandler = {
     .desc = "trap to xendbg"
 };
 
+#ifdef CONFIG_ARM_64
 extern void enable_ccounts(void);
+
 static void do_enable_cc(unsigned char key, struct cpu_user_regs *regs)
 {
 	printk("Enable CC in CPU %d\n", smp_processor_id());
 	enable_ccounts();
-
 }
 
 static struct keyhandler enable_cc_key_handler = {
@@ -540,6 +541,7 @@ static struct keyhandler enable_cc_key_handler = {
     .u.irq_fn = do_enable_cc,
     .desc = "Enable cycle counter"
 };
+#endif
 
 
 static void do_toggle_measure(unsigned char key, struct cpu_user_regs *regs)
@@ -577,7 +579,7 @@ void __init initialize_keytable(void)
         printk(XENLOG_INFO "Defaulting to alternative key handling; "
                "send 'A' to switch to normal mode.\n");
     }
-    measure_breakdown = false;
+    measure_breakdown = 0;
     
     register_keyhandler('A', &toggle_alt_keyhandler);
     register_keyhandler('d', &dump_registers_keyhandler);
@@ -590,7 +592,9 @@ void __init initialize_keytable(void)
     register_keyhandler('%', &do_debug_key_keyhandler);
     register_keyhandler('*', &run_all_keyhandlers_keyhandler);
     register_keyhandler('M', &toggle_measure_key_handler);
+#ifdef CONFIG_ARM_64
     register_keyhandler('C', &enable_cc_key_handler);
+#endif
 
 #ifdef PERF_COUNTERS
     register_keyhandler('p', &perfc_printall_keyhandler);
