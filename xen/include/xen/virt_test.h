@@ -7,7 +7,6 @@
 //#define MEASURE_BREAKDOWN
 
 //#define TRAP_INOUT
-//#define BREAKDOWN
 
 /* These are for hypercall breakdown */
 //#define SAVE_GP

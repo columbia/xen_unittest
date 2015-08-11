@@ -238,35 +238,6 @@ guest_sync_normal:
 	b handle_hypercall
 #endif
 
-#ifdef BREAKDOWN
-	cmp x0, #0x10000
-	bne guest_sync_normal
-	isb
-	mrs x1,PMCCNTR_EL0
-	isb
-
-        entry   hyp=0, compat=0
-
-	isb
-	mrs x7,PMCCNTR_EL0
-	isb
-        str     x7, [sp, #16]
-
-        msr     daifclr, #2
-        mov     x0, sp
-        bl      do_trap_hypervisor
-
-	isb
-	mrs x7,PMCCNTR_EL0
-	isb
-        str     x7, [sp, #40]
-
-        exit    hyp=0, compat=0
-	eret
-
-guest_sync_normal:
-#endif
-
 guest_sync_normal:
         entry   hyp=0, compat=0
 
