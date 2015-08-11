@@ -8,3 +8,10 @@
 
 //#define TRAP_INOUT
 //#define BREAKDOWN
+
+/* These are for hypercall breakdown */
+//#define SAVE_GP
+//#define RESTORE_GP
+//#define HVC_HANDLE
+//#define HYP_TAIL 
+//#define EXIT_GUEST

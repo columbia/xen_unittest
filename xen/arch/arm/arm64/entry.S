@@ -9,6 +9,12 @@
  */
 lr      .req    x30             // link register
 
+
+	.macro read_cc reg1
+	isb
+	mrs \reg1, PMCCNTR_EL0
+	isb
+	.endm
 /*
  * Stack pushing/popping (register pairs only). Equivalent to store decrement
  * before, load increment after.
@@ -134,14 +140,29 @@ lr      .req    x30             // link register
         .if \hyp == 0         /* Guest mode */
 
         bl      leave_hypervisor_tail /* Disables interrupts on return */
-#ifdef BREAKDOWN
-	isb
-	mrs x19,PMCCNTR_EL0
-	isb
-#endif
         exit_guest \compat
 
-        .endif
+	.endif
+
+	.if \hyp == 2	/* For measurement */
+#ifdef HYP_TAIL
+	read_cc x19
+        bl      leave_hypervisor_tail /* Disables interrupts on return */
+	read_cc x20
+        str     x19, [sp, #8] /* x1: before */
+	str	x20, [sp, #16] /* x2: after */
+        exit_guest \compat
+#endif
+
+#ifdef EXIT_GUEST
+        bl      leave_hypervisor_tail /* Disables interrupts on return */
+	read_cc x19
+        exit_guest \compat
+	read_cc x20
+        str     x19, [sp, #8] /* x1: before */
+	str	x20, [sp, #16] /* x2: after */
+#endif
+	.endif
 
         b       return_from_trap
 
@@ -204,6 +225,19 @@ guest_sync:
 guest_sync_normal:
 #endif
 
+#ifdef SAVE_GP
+	cmp x0, #0x10000
+	bne guest_sync_normal
+	read_cc x1
+
+        entry   hyp=0, compat=0
+
+	read_cc x7
+        str     x7, [sp, #16] 	/* x1: before, x2: after */
+
+	b handle_hypercall
+#endif
+
 #ifdef BREAKDOWN
 	cmp x0, #0x10000
 	bne guest_sync_normal
@@ -233,10 +267,40 @@ guest_sync_normal:
 guest_sync_normal:
 #endif
 
+guest_sync_normal:
         entry   hyp=0, compat=0
+
+#ifdef HVC_HANDLE
+	cmp x0, #0x10000
+	bne handle_hypercall 
+	read_cc x19 /* preserved by callee */
+
         msr     daifclr, #2
         mov     x0, sp
         bl      do_trap_hypervisor
+
+	read_cc x20
+        str     x19, [sp, #8] /* x1: before */
+	str	x20, [sp, #16] /* x2: after */
+	b go_exit
+#endif
+
+#if defined(HYP_TAIL) || defined(EXIT_GUEST)
+	cmp x0, #0x10000
+	bne handle_hypercall 
+
+        msr     daifclr, #2
+        mov     x0, sp
+        bl      do_trap_hypervisor
+
+	exit	hyp=2, compat=0 /* never returns */
+#endif
+
+handle_hypercall:
+        msr     daifclr, #2
+        mov     x0, sp
+        bl      do_trap_hypervisor
+go_exit:
         exit    hyp=0, compat=0
 
 guest_irq:
@@ -280,18 +344,17 @@ ENTRY(return_to_new_vcpu64)
         exit    hyp=0, compat=0
 
 return_from_trap:
-#ifdef BREAKDOWN
-	ldr	x7, [sp]
-	cmp x7, #0x10000
-	bne rtf_entry
-        str     x19, [sp, #24]
-rtf_entry:
-#endif
-
         msr     daifset, #2 /* Mask interrupts */
         ldp     x21, x22, [sp, #UREGS_PC]       // load ELR, SPSR
 
         pop     x0, x1
+
+#ifdef RESTORE_GP 
+	cmp x0, #0x10000
+	bne rtf_entry
+	read_cc x1 
+rtf_entry:
+#endif
         pop     x2, x3
         pop     x4, x5
         pop     x6, x7
@@ -309,20 +372,17 @@ rtf_entry:
         pop     x22, x23
         pop     x24, x25
         pop     x26, x27
+
         pop     x28, x29
 
         ldr     lr, [sp], #(UREGS_SPSR_el1 - UREGS_LR) /* CPSR, PC, SP, LR */
 
-#ifdef BREAKDOWN
+#ifdef RESTORE_GP 
 	cmp x0, #0x10000
-	bne rtf_exit
-	isb
-	mrs x4,PMCCNTR_EL0
-	isb
-rtf_exit:
+	bne goto_eret
+	read_cc x2
+goto_eret:
 #endif
-
-
         eret
 
 /*
