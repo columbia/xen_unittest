@@ -178,7 +178,7 @@ void reset_idle_switch_time(unsigned int cpu)
 {
 	struct vcpu *v = idle_vcpu[cpu];
 	if ( cpu_online(cpu) && v )
-		v->acc_ctx = 0;;
+		v->acc_ctx = 0;
 }
 
 uint64_t get_idle_switch_time(unsigned int cpu)
