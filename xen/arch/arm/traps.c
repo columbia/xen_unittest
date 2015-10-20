@@ -2021,7 +2021,8 @@ static inline unsigned long xen_arm_read_pcounter(void)
 
 extern int profile_on;
 
-static inline void account_stat_entry(struct cpu_user_regs *regs)
+// source: 1: do_trap_hypervisor. 2: do_trap_irq
+static inline void account_stat_entry(struct cpu_user_regs *regs, int source)
 {
     if (profile_on && guest_mode(regs)) {
 	    unsigned long switch_to_xen_start= 0;
@@ -2040,6 +2041,11 @@ static inline void account_stat_entry(struct cpu_user_regs *regs)
 	    current->acc_switch_to_dom += current->ts_xen_exit - current->ts_switch_to_dom_start;
 	    current->acc_guest_time += current->ts_xen_entry - current->ts_xen_exit;
     }
+
+    if (profile_on && source == 2)
+		current->irq_cnt ++;
+    else if (profile_on && guest_mode(regs) && source == 1)
+		current->hyp_cnt++;
 }
 
 void account_stat_exit(struct cpu_user_regs *regs)
@@ -2055,7 +2061,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
 
-    account_stat_entry(regs);
+    account_stat_entry(regs, 1);
     enter_hypervisor_head(regs);
 
     /*
@@ -2079,9 +2085,11 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         }
         if ( hsr.wfi_wfe.ti ) {
             /* Yield the VCPU for WFE */
+		current->exit_wfe++;
             vcpu_yield();
         } else {
             /* Block the VCPU for WFI */
+		current->exit_wfi++;
             vcpu_block_unless_event_pending(current);
         }
         advance_pc(regs, hsr);
@@ -2143,6 +2151,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 		do_trap_psci(regs);
 		/*return*/ goto out ;
 	}
+	current->exit_hyp++;
         do_trap_hypercall(regs, &regs->x16, hsr.iss);
         break;
     case HSR_EC_SMC64:
@@ -2151,6 +2160,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
     case HSR_EC_SYSREG:
         if ( is_32bit_domain(current->domain) )
             goto bad_trap;
+	current->exit_sys++;
         do_sysreg(regs, hsr);
         break;
 #endif
@@ -2180,7 +2190,7 @@ out:
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
-	account_stat_entry(regs);
+	account_stat_entry(regs, 2);
 
 	enter_hypervisor_head(regs);
 	gic_interrupt(regs, 0);

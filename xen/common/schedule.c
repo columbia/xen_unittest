@@ -1294,6 +1294,7 @@ static void schedule(void)
     prev = context_switch(prev, next);
     diff = xen_arm_read_pcounter() - prev->ts_ctx_start;
     next->acc_ctx += diff;
+    next->cnt_ctx += 1;
     acc_ctx[cpu] += diff;
     cnt_ctx[cpu] += 1;
 }

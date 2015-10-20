@@ -259,6 +259,15 @@ struct vcpu
     uint64_t acc_ctx_vcpu;
     uint64_t acc_ctx_callee;
     uint64_t acc_ctx;
+    uint64_t cnt_ctx;
+    uint64_t irq_cnt;
+    uint64_t hyp_cnt;
+
+    uint64_t exit_wfi;
+    uint64_t exit_wfe;
+    uint64_t exit_hyp;
+    uint64_t exit_sys;
+	int hyp_table[13];
 
     uint64_t ts_xen_entry;
     uint64_t ts_xen_exit;
@@ -486,6 +495,15 @@ struct domain
     uint64_t acc_ctx_callee;
     uint64_t acc_ctx_vcpu;
     uint64_t acc_ctx;
+    uint64_t cnt_ctx;
+    uint64_t irq_cnt;
+    uint64_t hyp_cnt;
+
+    uint64_t exit_wfi;
+    uint64_t exit_wfe;
+    uint64_t exit_hyp;
+    uint64_t exit_sys;
+	int hyp_table[13];
 
     uint64_t cnt_switch_to_xen;
 };

@@ -543,11 +543,13 @@ static inline unsigned long xen_arm_read_pcounter(void)
 struct domain *g_idle_domain;
 unsigned long acc_ctx[NR_CPUS];
 unsigned long cnt_ctx[NR_CPUS];
+int hyp_table_size = 13;
 
 unsigned long sum_idle_time = 0;
 unsigned long idle_switch_time = 0;
 unsigned long total_switch = 0;
-unsigned long total_switch_cnt = 0;
+unsigned long total_dom0_switch_cnt = 0;
+unsigned long total_domU_switch_cnt = 0;
 
 /* This function is called with rcu_read_lock held */
 static void update_stat(unsigned long stop_time)
@@ -568,6 +570,16 @@ static void update_stat(unsigned long stop_time)
 		d->acc_ctx_vcpu = 0;
 		d->cnt_switch_to_xen = 0;
 		d->acc_ctx = 0;
+		d->cnt_ctx = 0;
+		d->irq_cnt = 0;
+		d->hyp_cnt = 0;
+
+		d->exit_wfi = 0;
+		d->exit_wfe = 0;
+		d->exit_hyp = 0;
+		d->exit_sys = 0;
+		for (i = 0 ; i < hyp_table_size; i++)
+			d->hyp_table[i] = 0;
 
 		for_each_vcpu ( d, v )
 		{
@@ -586,18 +598,33 @@ static void update_stat(unsigned long stop_time)
 			d->acc_ctx_callee += v->acc_ctx_callee;
 			d->acc_ctx_vcpu += v->acc_ctx_vcpu;
 			d->acc_ctx += v->acc_ctx;
+			d->cnt_ctx += v->cnt_ctx;
+			d->irq_cnt += v->irq_cnt;
+			d->hyp_cnt += v->hyp_cnt;
+
+			d->exit_wfi += v->exit_wfi;
+			d->exit_wfe += v->exit_wfe;
+			d->exit_hyp += v->exit_hyp;
+			d->exit_sys += v->exit_sys;
+
+			for (i = 0 ; i < hyp_table_size; i++)
+				d->hyp_table[i] += v->hyp_table[i];
 		}
 	}
 
         sum_idle_time = 0;
         idle_switch_time = 0;
         total_switch = 0;
-        total_switch_cnt = 0;
+        total_dom0_switch_cnt = 0;
+        total_domU_switch_cnt = 0;
         for (i = 0; i < nr_cpu_ids; i++) {
                 sum_idle_time += get_cpu_idle_time(i);
                 idle_switch_time += get_idle_switch_time(i);
                 total_switch += acc_ctx[i];
-                total_switch_cnt += cnt_ctx[i];
+		if ( i < 4)
+                	total_dom0_switch_cnt += cnt_ctx[i];
+		else
+                	total_domU_switch_cnt += cnt_ctx[i];
         }
 }
 
@@ -605,6 +632,7 @@ static void print_per_domain_stat(unsigned long duration)
 {
 	struct domain *d;
 	unsigned long xen_time;
+	int i = 0;
 
         printk("<---------- Per Domain Stat (Unit: arch counter) ---------->\n");
 	printk("Elapsed:       \t%12"PRIu64"\n", duration);
@@ -627,11 +655,24 @@ static void print_per_domain_stat(unsigned long duration)
 		printk("Xen (EL2):    \t%12"PRIu64"\n", xen_time);
 		printk("-Do_trap:     \t%12"PRIu64"\n", d->acc_do_trap_time);
 		printk("-EL2 Switch:  \t%12"PRIu64"\n", d->acc_switch_to_xen + d->acc_switch_to_dom);
+		printk("-EL2 Switch cnt: \t%12"PRIu64"\n", d->cnt_switch_to_xen);
+		printk("-EL2 Switch irq: \t%12"PRIu64"\n", d->irq_cnt);
+		printk("-EL2 Switch hyp: \t%12"PRIu64"\n", d->hyp_cnt);
+
+		printk("-EL2 Exit wfi: \t%12"PRIu64"\n", d->exit_wfi);
+		printk("-EL2 Exit wfe: \t%12"PRIu64"\n", d->exit_wfe);
+		printk("-EL2 Exit hyp: \t%12"PRIu64"\n", d->exit_hyp);
+		printk("-EL2 Exit sys: \t%12"PRIu64"\n", d->exit_sys);
+		
+		for (i = 0; i < hyp_table_size; i++)
+			printk("-HYP table [%d]: \t%12d\n", i, d->hyp_table[i]);
+
                 /*
 		printk("--to_Xen:\t%12"PRIu64"\n", d->acc_switch_to_xen);
 		printk("--to_Dom:\t%12"PRIu64"\n", d->acc_switch_to_dom);
                 */
 		printk("-VCPU Switch: \t%12"PRIu64"\n", d->acc_ctx);
+		printk("-VCPU Switch cnt: \t%12"PRIu64"\n", d->cnt_ctx);
 		printk("-Rest:        \t%12"PRIu64"\n", xen_time - d->acc_do_trap_time - \
 			d->acc_switch_to_xen - d->acc_switch_to_dom - d->acc_ctx);
                 /*
@@ -640,6 +681,8 @@ static void print_per_domain_stat(unsigned long duration)
 		printk("to_dom:\t%9"PRIu64"/10 per switch\n", d->acc_switch_to_dom*10 / d->cnt_switch_to_xen);
                 */
 	}
+	printk("Dom0 VCPU Switch cnt: \t%12"PRIu64"\n", total_dom0_switch_cnt);
+	printk("DomU VCPU Switch cnt: \t%12"PRIu64"\n", total_domU_switch_cnt);
 }
 
 static void init_stat(unsigned long start_time)
@@ -647,6 +690,7 @@ static void init_stat(unsigned long start_time)
 	struct domain *d;
 	struct vcpu   *v;
 	struct vcpu_runstate_info runstate;
+	int i = 0;
 	for_each_domain ( d )
 	{
 		for_each_vcpu ( d, v )
@@ -663,8 +707,17 @@ static void init_stat(unsigned long start_time)
 			v->acc_ctx_callee = 0;
 			v->acc_ctx_vcpu = 0;
 			v->acc_ctx = 0;
+			v->cnt_ctx = 0;
 			v->cnt_switch_to_xen = 0;
+			v->irq_cnt = 0;
+			v->hyp_cnt = 0;
+			for (i = 0 ; i < hyp_table_size; i++)
+				v->hyp_table[i] = 0;
 
+			    v->exit_wfi = 0;
+			    v->exit_wfe = 0;
+			    v->exit_hyp = 0;
+			    v->exit_sys = 0;
 			vcpu_runstate_get(v, &runstate);
 			v->init_running_time= runstate.time[RUNSTATE_running];
 		}
