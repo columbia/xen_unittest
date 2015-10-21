@@ -25,6 +25,7 @@
 #include <public/vcpu.h>
 #include <public/mem_event.h>
 #include <public/event_channel.h>
+#include <xen/exit.h>
 
 #ifdef CONFIG_COMPAT
 #include <compat/vcpu.h>
@@ -260,14 +261,22 @@ struct vcpu
     uint64_t acc_ctx_callee;
     uint64_t acc_ctx;
     uint64_t cnt_ctx;
-    uint64_t irq_cnt;
-    uint64_t hyp_cnt;
-
-    uint64_t exit_wfi;
-    uint64_t exit_wfe;
-    uint64_t exit_hyp;
-    uint64_t exit_sys;
-	int hyp_table[13];
+	int exit_reason;
+	uint64_t trap_breakdown_time[TRAP_MAX];
+	int trap_breakdown_cnt[TRAP_MAX];
+/*
+    uint64_t gnt_map_grant_ref;
+    uint64_t gnt_unmap_grant_ref;
+    uint64_t gnt_unmap_and_replace;
+    uint64_t gnt_setup_table;
+    uint64_t gnt_transfer;
+    uint64_t gnt_query_size;
+    uint64_t gnt_set_version;
+    uint64_t gnt_get_status_frames;
+    uint64_t gnt_get_version;
+    uint64_t gnt_swap_grant_ref;
+    uint64_t gnt_cache_flush;
+*/
 
     uint64_t ts_xen_entry;
     uint64_t ts_xen_exit;
@@ -496,14 +505,8 @@ struct domain
     uint64_t acc_ctx_vcpu;
     uint64_t acc_ctx;
     uint64_t cnt_ctx;
-    uint64_t irq_cnt;
-    uint64_t hyp_cnt;
-
-    uint64_t exit_wfi;
-    uint64_t exit_wfe;
-    uint64_t exit_hyp;
-    uint64_t exit_sys;
-	int hyp_table[13];
+	uint64_t trap_breakdown_time[TRAP_MAX];
+	int trap_breakdown_cnt[TRAP_MAX];
 
     uint64_t cnt_switch_to_xen;
 };

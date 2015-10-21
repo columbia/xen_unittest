@@ -39,6 +39,7 @@
 #include <asm/psci.h>
 #include <asm/mmio.h>
 #include <asm/cpufeature.h>
+#include <xen/exit.h>
 
 #include "decode.h"
 #include "vtimer.h"
@@ -1991,6 +1992,7 @@ static void do_trap_data_abort_guest(struct cpu_user_regs *regs,
         }
     }
 
+    current->exit_reason = TRAP_IO_KERNEL;
     if (handle_mmio(&info))
     {
         advance_pc(regs, hsr);
@@ -2041,26 +2043,36 @@ static inline void account_stat_entry(struct cpu_user_regs *regs, int source)
 	    current->acc_switch_to_dom += current->ts_xen_exit - current->ts_switch_to_dom_start;
 	    current->acc_guest_time += current->ts_xen_entry - current->ts_xen_exit;
     }
-
-    if (profile_on && source == 2)
-		current->irq_cnt ++;
-    else if (profile_on && guest_mode(regs) && source == 1)
-		current->hyp_cnt++;
 }
 
-void account_stat_exit(struct cpu_user_regs *regs)
+void account_stat_exit(struct cpu_user_regs *regs, int source)
 {
+	unsigned long diff;
 	if (profile_on && guest_mode(regs)) {
 		current->ts_do_trap_xxx_exit = xen_arm_read_pcounter();
-		if (current->ts_do_trap_xxx_entry)
-			current->acc_do_trap_time += current->ts_do_trap_xxx_exit - current->ts_do_trap_xxx_entry;
+		if (current->ts_do_trap_xxx_entry) {
+			diff = current->ts_do_trap_xxx_exit - current->ts_do_trap_xxx_entry;
+			current->acc_do_trap_time += diff;
+			current->trap_breakdown_time[current->exit_reason] += diff;
+			current->trap_breakdown_cnt[current->exit_reason] ++;
+		}
 	}
+	if (profile_on && source== 2 && !guest_mode(regs)) {
+		current->ts_do_trap_xxx_exit = xen_arm_read_pcounter();
+		if (current->ts_do_trap_xxx_entry) {
+			diff = current->ts_do_trap_xxx_exit - current->ts_do_trap_xxx_entry;
+			current->trap_breakdown_time[TRAP_IRQ_HYP] += diff;
+			current->trap_breakdown_cnt[TRAP_IRQ_HYP] ++;
+		}
+	}
+
 }
 
 asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
     union hsr hsr = { .bits = READ_SYSREG32(ESR_EL2) };
 
+	current->exit_reason = TRAP_OTHER;
     account_stat_entry(regs, 1);
     enter_hypervisor_head(regs);
 
@@ -2085,11 +2097,11 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         }
         if ( hsr.wfi_wfe.ti ) {
             /* Yield the VCPU for WFE */
-		current->exit_wfe++;
+		current->exit_reason = TRAP_WFE;
             vcpu_yield();
         } else {
             /* Block the VCPU for WFI */
-		current->exit_wfi++;
+		current->exit_reason = TRAP_WFI;
             vcpu_block_unless_event_pending(current);
         }
         advance_pc(regs, hsr);
@@ -2151,7 +2163,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 		do_trap_psci(regs);
 		/*return*/ goto out ;
 	}
-	current->exit_hyp++;
+	current->exit_reason = TRAP_HVC;
         do_trap_hypercall(regs, &regs->x16, hsr.iss);
         break;
     case HSR_EC_SMC64:
@@ -2160,7 +2172,6 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
     case HSR_EC_SYSREG:
         if ( is_32bit_domain(current->domain) )
             goto bad_trap;
-	current->exit_sys++;
         do_sysreg(regs, hsr);
         break;
 #endif
@@ -2185,16 +2196,17 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
         do_unexpected_trap("Hypervisor", regs);
     }
 out:
-	account_stat_exit(regs);
+	account_stat_exit(regs, 1);
 }
 
 asmlinkage void do_trap_irq(struct cpu_user_regs *regs)
 {
+	current->exit_reason = TRAP_IRQ;
 	account_stat_entry(regs, 2);
 
 	enter_hypervisor_head(regs);
 	gic_interrupt(regs, 0);
-	account_stat_exit(regs);
+	account_stat_exit(regs, 2);
 }
 
 asmlinkage void do_trap_fiq(struct cpu_user_regs *regs)

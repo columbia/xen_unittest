@@ -1,0 +1,521 @@
+diff --git a/xen/Rules.mk b/xen/Rules.mk
+index a97405c..ece0506 100644
+--- a/xen/Rules.mk
++++ b/xen/Rules.mk
+@@ -4,7 +4,7 @@
+ # 'make clean' before rebuilding.
+ #
+ verbose       ?= n
+-perfc         ?= n
++perfc         ?= y
+ perfc_arrays  ?= n
+ lock_profile  ?= n
+ crash_debug   ?= n
+diff --git a/xen/arch/arm/gic.c b/xen/arch/arm/gic.c
+index e7a1af5..8e45859 100644
+--- a/xen/arch/arm/gic.c
++++ b/xen/arch/arm/gic.c
+@@ -539,6 +539,8 @@ static void do_sgi(struct cpu_user_regs *regs, enum gic_sgi sgi)
+     /* Lower the priority */
+     gic_hw_ops->eoi_irq(desc);
+ 
++    perfc_incr(ipis);
++
+     switch (sgi)
+     {
+     case GIC_SGI_EVENT_CHECK:
+@@ -593,6 +595,7 @@ int gicv_setup(struct domain *d)
+ 
+ static void maintenance_interrupt(int irq, void *dev_id, struct cpu_user_regs *regs)
+ {
++    perfc_incr(maintenance_irqs);
+     /*
+      * This is a dummy interrupt handler.
+      * Receiving the interrupt is going to cause gic_inject to be called
+diff --git a/xen/arch/arm/irq.c b/xen/arch/arm/irq.c
+index 25ecf1d..371b2c3 100644
+--- a/xen/arch/arm/irq.c
++++ b/xen/arch/arm/irq.c
+@@ -24,6 +24,7 @@
+ #include <xen/init.h>
+ #include <xen/errno.h>
+ #include <xen/sched.h>
++#include <xen/perfc.h>
+ 
+ #include <asm/gic.h>
+ #include <asm/vgic.h>
+@@ -180,6 +181,12 @@ void do_IRQ(struct cpu_user_regs *regs, unsigned int irq, int is_fiq)
+     struct irq_desc *desc = irq_to_desc(irq);
+ 
+     /* TODO: perfc_incr(irqs); */
++    perfc_incr(irqs);
++
++    if (irq < 32)
++        perfc_incr(ppis);
++    else
++        perfc_incr(spis);
+ 
+     /* TODO: this_cpu(irq_count)++; */
+ 
+@@ -199,6 +206,7 @@ void do_IRQ(struct cpu_user_regs *regs, unsigned int irq, int is_fiq)
+     {
+         struct domain *d = irq_get_domain(desc);
+ 
++        perfc_incr(guest_irqs);
+         desc->handler->end(desc);
+ 
+         set_bit(_IRQ_INPROGRESS, &desc->status);
+diff --git a/xen/arch/arm/time.c b/xen/arch/arm/time.c
+index 0add494..d18790e 100644
+--- a/xen/arch/arm/time.c
++++ b/xen/arch/arm/time.c
+@@ -151,6 +151,7 @@ static void timer_interrupt(int irq, void *dev_id, struct cpu_user_regs *regs)
+     if ( irq == (timer_irq[TIMER_HYP_PPI]) &&
+          READ_SYSREG32(CNTHP_CTL_EL2) & CNTx_CTL_PENDING )
+     {
++        perfc_incr(hyp_timer_irqs);
+         /* Signal the generic timer code to do its work */
+         raise_softirq(TIMER_SOFTIRQ);
+         /* Disable the timer to avoid more interrupts */
+@@ -160,6 +161,7 @@ static void timer_interrupt(int irq, void *dev_id, struct cpu_user_regs *regs)
+     if ( irq == (timer_irq[TIMER_PHYS_NONSECURE_PPI]) &&
+          READ_SYSREG32(CNTP_CTL_EL0) & CNTx_CTL_PENDING )
+     {
++        perfc_incr(phys_timer_irqs);
+         /* Signal the generic timer code to do its work */
+         raise_softirq(TIMER_SOFTIRQ);
+         /* Disable the timer to avoid more interrupts */
+diff --git a/xen/arch/arm/traps.c b/xen/arch/arm/traps.c
+index 4c93250..c17b71d 100644
+--- a/xen/arch/arm/traps.c
++++ b/xen/arch/arm/traps.c
+@@ -30,6 +30,7 @@
+ #include <xen/hypercall.h>
+ #include <xen/softirq.h>
+ #include <xen/domain_page.h>
++#include <xen/perfc.h>
+ #include <public/sched.h>
+ #include <public/xen.h>
+ #include <asm/debugger.h>
+@@ -1240,6 +1241,7 @@ static void do_trap_psci(struct cpu_user_regs *regs)
+     case PSCI_cpu_off:
+         {
+             uint32_t pstate = PSCI_ARG32(regs,1);
++            perfc_incr(vpsci_cpu_off);
+             PSCI_RESULT_REG(regs) = do_psci_cpu_off(pstate);
+         }
+         break;
+@@ -1247,6 +1249,7 @@ static void do_trap_psci(struct cpu_user_regs *regs)
+         {
+             uint32_t vcpuid = PSCI_ARG32(regs,1);
+             register_t epoint = PSCI_ARG(regs,2);
++            perfc_incr(vpsci_cpu_on);
+             PSCI_RESULT_REG(regs) = do_psci_cpu_on(vcpuid, epoint);
+         }
+         break;
+@@ -1349,10 +1352,12 @@ static void do_trap_hypercall(struct cpu_user_regs *regs, register_t *nr,
+ 
+     if ( *nr >= ARRAY_SIZE(arm_hypercall_table) )
+     {
++        perfc_incr(invalid_hypercalls);
+         HYPERCALL_RESULT_REG(regs) = -ENOSYS;
+         return;
+     }
+ 
++    perfc_incra(hypercalls, *nr);
+     call = arm_hypercall_table[*nr].fn;
+     if ( call == NULL )
+     {
+@@ -1492,7 +1497,10 @@ static int check_conditional_instr(struct cpu_user_regs *regs, union hsr hsr)
+     cpsr_cond = cpsr >> 28;
+ 
+     if ( !((cc_map[cond] >> cpsr_cond) & 1) )
++    {
++        perfc_incr(trap_uncond);
+         return 0;
++    }
+ 
+     return 1;
+ }
+@@ -2034,14 +2042,17 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
+         }
+         if ( hsr.wfi_wfe.ti ) {
+             /* Yield the VCPU for WFE */
++            perfc_incr(trap_wfe);
+             vcpu_yield();
+         } else {
+             /* Block the VCPU for WFI */
++            perfc_incr(trap_wfi);
+             vcpu_block_unless_event_pending(current);
+         }
+         advance_pc(regs, hsr);
+         break;
+     case HSR_EC_CP15_32:
++        perfc_incr(trap_cp15_32);
+         if ( !is_32bit_domain(current->domain) )
+             goto bad_trap;
+         do_cp15_32(regs, hsr);
+@@ -2049,27 +2060,33 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
+     case HSR_EC_CP15_64:
+         if ( !is_32bit_domain(current->domain) )
+             goto bad_trap;
++        perfc_incr(trap_cp15_32);
+         do_cp15_64(regs, hsr);
+         break;
+     case HSR_EC_CP14_32:
+         if ( !is_32bit_domain(current->domain) )
+             goto bad_trap;
++        perfc_incr(trap_cp14_32);
+         do_cp14_32(regs, hsr);
+         break;
+     case HSR_EC_CP14_DBG:
+         if ( !is_32bit_domain(current->domain) )
+             goto bad_trap;
++        perfc_incr(trap_cp14_dbg);
+         do_cp14_dbg(regs, hsr);
+         break;
+     case HSR_EC_CP:
+         if ( !is_32bit_domain(current->domain) )
+             goto bad_trap;
++        perfc_incr(trap_cp);
+         do_cp(regs, hsr);
+         break;
+     case HSR_EC_SMC32:
++        perfc_incr(trap_smc32);
+         inject_undef32_exception(regs);
+         break;
+     case HSR_EC_HVC32:
++        perfc_incr(trap_hvc32);
+ #ifndef NDEBUG
+         if ( (hsr.iss & 0xff00) == 0xff00 )
+             return do_debug_trap(regs, hsr.iss & 0x00ff);
+@@ -2080,6 +2097,7 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
+         break;
+ #ifdef CONFIG_ARM_64
+     case HSR_EC_HVC64:
++        perfc_incr(trap_hvc64);
+ #ifndef NDEBUG
+         if ( (hsr.iss & 0xff00) == 0xff00 )
+             return do_debug_trap(regs, hsr.iss & 0x00ff);
+@@ -2089,9 +2107,11 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
+         do_trap_hypercall(regs, &regs->x16, hsr.iss);
+         break;
+     case HSR_EC_SMC64:
++        perfc_incr(trap_smc64);
+         inject_undef64_exception(regs, hsr.len);
+         break;
+     case HSR_EC_SYSREG:
++        perfc_incr(trap_sysreg);
+         if ( is_32bit_domain(current->domain) )
+             goto bad_trap;
+         do_sysreg(regs, hsr);
+@@ -2099,9 +2119,11 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
+ #endif
+ 
+     case HSR_EC_INSTR_ABORT_LOWER_EL:
++        perfc_incr(trap_iabt);
+         do_trap_instr_abort_guest(regs, hsr);
+         break;
+     case HSR_EC_DATA_ABORT_LOWER_EL:
++        perfc_incr(trap_dabt);
+         do_trap_data_abort_guest(regs, hsr);
+         break;
+ 
+diff --git a/xen/arch/arm/vgic.c b/xen/arch/arm/vgic.c
+index b8bd38b..0eed5ab 100644
+--- a/xen/arch/arm/vgic.c
++++ b/xen/arch/arm/vgic.c
+@@ -24,6 +24,7 @@
+ #include <xen/softirq.h>
+ #include <xen/irq.h>
+ #include <xen/sched.h>
++#include <xen/perfc.h>
+ 
+ #include <asm/current.h>
+ 
+@@ -187,6 +188,8 @@ void vgic_migrate_irq(struct vcpu *old, struct vcpu *new, unsigned int irq)
+ 
+     spin_lock_irqsave(&old->arch.vgic.lock, flags);
+ 
++    perfc_incr(vgic_irq_migrates);
++
+     if ( list_empty(&p->inflight) )
+     {
+         irq_set_affinity(p->desc, cpumask_of(new->processor));
+@@ -301,8 +304,10 @@ int vgic_to_sgi(struct vcpu *v, register_t sgir, enum gic_sgi_mode irqmode, int
+     switch ( irqmode )
+     {
+     case SGI_TARGET_LIST:
++        perfc_incr(vgic_sgi_list);
+         break;
+     case SGI_TARGET_OTHERS:
++        perfc_incr(vgic_sgi_others);
+         /*
+          * We expect vcpu_mask to be 0 for SGI_TARGET_OTHERS and
+          * SGI_TARGET_SELF mode. So Force vcpu_mask to 0
+@@ -316,6 +321,7 @@ int vgic_to_sgi(struct vcpu *v, register_t sgir, enum gic_sgi_mode irqmode, int
+         }
+         break;
+     case SGI_TARGET_SELF:
++        perfc_incr(vgic_sgi_self);
+         /*
+          * We expect vcpu_mask to be 0 for SGI_TARGET_OTHERS and
+          * SGI_TARGET_SELF mode. So Force vcpu_mask to 0
+@@ -418,7 +424,10 @@ out:
+     running = v->is_running;
+     vcpu_unblock(v);
+     if ( running && v != current )
++    {
++        perfc_incr(vgic_cross_cpu_intr_inject);
+         smp_send_event_check_mask(cpumask_of(v->processor));
++    }
+ }
+ 
+ void vgic_vcpu_inject_spi(struct domain *d, unsigned int irq)
+diff --git a/xen/arch/arm/vtimer.c b/xen/arch/arm/vtimer.c
+index 2e95ceb..77573f4 100644
+--- a/xen/arch/arm/vtimer.c
++++ b/xen/arch/arm/vtimer.c
+@@ -21,6 +21,7 @@
+ #include <xen/lib.h>
+ #include <xen/timer.h>
+ #include <xen/sched.h>
++#include <xen/perfc.h>
+ #include <asm/irq.h>
+ #include <asm/time.h>
+ #include <asm/gic.h>
+@@ -35,7 +36,9 @@ static void phys_timer_expired(void *data)
+     struct vtimer *t = data;
+     t->ctl |= CNTx_CTL_PENDING;
+     if ( !(t->ctl & CNTx_CTL_MASK) )
++        perfc_incr(vtimer_phys_inject);
+         vgic_vcpu_inject_irq(t->v, t->irq);
++
+ }
+ 
+ static void virt_timer_expired(void *data)
+@@ -43,6 +46,7 @@ static void virt_timer_expired(void *data)
+     struct vtimer *t = data;
+     t->ctl |= CNTx_CTL_MASK;
+     vgic_vcpu_inject_irq(t->v, t->irq);
++    perfc_incr(vtimer_virt_inject);
+ }
+ 
+ int domain_vtimer_init(struct domain *d)
+@@ -196,6 +200,11 @@ static int vtimer_emulate_cp32(struct cpu_user_regs *regs, union hsr hsr)
+     struct hsr_cp32 cp32 = hsr.cp32;
+     uint32_t *r = (uint32_t *)select_user_reg(regs, cp32.reg);
+ 
++    if ( cp32.read )
++        perfc_incr(vtimer_cp32_reads);
++    else
++        perfc_incr(vtimer_cp32_writes);
++
+     switch ( hsr.bits & HSR_CP32_REGS_MASK )
+     {
+     case HSR_CPREG32(CNTP_CTL):
+@@ -218,6 +227,11 @@ static int vtimer_emulate_cp64(struct cpu_user_regs *regs, union hsr hsr)
+     uint32_t *r2 = (uint32_t *)select_user_reg(regs, cp64.reg2);
+     uint64_t x;
+ 
++    if ( cp64.read )
++        perfc_incr(vtimer_cp64_reads);
++    else
++        perfc_incr(vtimer_cp64_writes);
++
+     switch ( hsr.bits & HSR_CP64_REGS_MASK )
+     {
+     case HSR_CPREG64(CNTPCT):
+@@ -243,6 +257,11 @@ static int vtimer_emulate_sysreg(struct cpu_user_regs *regs, union hsr hsr)
+     register_t *x = select_user_reg(regs, sysreg.reg);
+     uint32_t r = (uint32_t)*x;
+ 
++    if ( sysreg.read )
++        perfc_incr(vtimer_sysreg_reads);
++    else
++        perfc_incr(vtimer_sysreg_writes);
++
+     switch ( hsr.bits & HSR_SYSREG_REGS_MASK )
+     {
+     case HSR_SYSREG_CNTP_CTL_EL0:
+diff --git a/xen/arch/arm/vuart.c b/xen/arch/arm/vuart.c
+index e327c15..d9f4249 100644
+--- a/xen/arch/arm/vuart.c
++++ b/xen/arch/arm/vuart.c
+@@ -39,6 +39,7 @@
+ #include <xen/ctype.h>
+ #include <xen/serial.h>
+ #include <asm/mmio.h>
++#include <xen/perfc.h>
+ 
+ #include "vuart.h"
+ 
+@@ -112,6 +113,8 @@ static int vuart_mmio_read(struct vcpu *v, mmio_info_t *info)
+     register_t *r = select_user_reg(regs, dabt.reg);
+     paddr_t offset = info->gpa - d->arch.vuart.info->base_addr;
+ 
++    perfc_incr(vuart_reads);
++
+     /* By default zeroed the register */
+     *r = 0;
+ 
+@@ -130,6 +133,8 @@ static int vuart_mmio_write(struct vcpu *v, mmio_info_t *info)
+     register_t *r = select_user_reg(regs, dabt.reg);
+     paddr_t offset = info->gpa - d->arch.vuart.info->base_addr;
+ 
++    perfc_incr(vuart_writes);
++
+     if ( offset == d->arch.vuart.info->data_off )
+         /* ignore any status bits */
+         vuart_print_char(v, *r & 0xFF);
+diff --git a/xen/common/perfc.c b/xen/common/perfc.c
+index 96a4245..94903f6 100644
+--- a/xen/common/perfc.c
++++ b/xen/common/perfc.c
+@@ -57,7 +57,7 @@ void perfc_printall(unsigned char key)
+                 for_each_online_cpu ( cpu )
+                 {
+                     if ( k > 0 && (k % 4) == 0 )
+-                        printk("\n%46s", "");
++			printk("\n%53s", "");
+                     printk("  CPU%02u[%10"PRIperfc"u]", cpu, per_cpu(perfcounters, cpu)[j]);
+                     ++k;
+                 }
+@@ -103,7 +103,7 @@ void perfc_printall(unsigned char key)
+                     if ( perfc_info[i].type == TYPE_S_ARRAY ) 
+                         sum = (perfc_t) sum;
+                     if ( k > 0 && (k % 4) == 0 )
+-                        printk("\n%46s", "");
++			printk("\n%53s", "");
+                     printk("  CPU%02u[%10Lu]", cpu, sum);
+                     ++k;
+                 }
+diff --git a/xen/include/asm-arm/config.h b/xen/include/asm-arm/config.h
+index 264e2c1..5e67015 100644
+--- a/xen/include/asm-arm/config.h
++++ b/xen/include/asm-arm/config.h
+@@ -187,6 +187,8 @@
+ #define PAGE_MASK           (~(PAGE_SIZE-1))
+ #define PAGE_FLAG_MASK      (~0)
+ 
++#define NR_hypercalls 64
++
+ #define STACK_ORDER 3
+ #define STACK_SIZE  (PAGE_SIZE << STACK_ORDER)
+ 
+diff --git a/xen/include/asm-arm/perfc.h b/xen/include/asm-arm/perfc.h
+new file mode 100644
+index 0000000..95c4b2b
+--- /dev/null
++++ b/xen/include/asm-arm/perfc.h
+@@ -0,0 +1,21 @@
++#ifndef __ASM_PERFC_H__
++#define __ASM_PERFC_H__
++
++static inline void arch_perfc_reset(void)
++{
++}
++
++static inline void arch_perfc_gather(void)
++{
++}
++
++#endif
++
++/*
++ * Local variables:
++ * mode: C
++ * c-file-style: "BSD"
++ * c-basic-offset: 4
++ * indent-tabs-mode: nil
++ * End:
++ */
+diff --git a/xen/include/asm-arm/perfc_defn.h b/xen/include/asm-arm/perfc_defn.h
+new file mode 100644
+index 0000000..69fabe7
+--- /dev/null
++++ b/xen/include/asm-arm/perfc_defn.h
+@@ -0,0 +1,83 @@
++/* This file is legitimately included multiple times. */
++/*#ifndef __XEN_PERFC_DEFN_H__*/
++/*#define __XEN_PERFC_DEFN_H__*/
++
++PERFCOUNTER(invalid_hypercalls, "invalid hypercalls")
++
++PERFCOUNTER(trap_wfi,      "trap: wfi")
++PERFCOUNTER(trap_wfe,      "trap: wfe")
++PERFCOUNTER(trap_cp15_32,  "trap: cp15 32-bit access")
++PERFCOUNTER(trap_cp15_64,  "trap: cp15 64-bit access")
++PERFCOUNTER(trap_cp14_32,  "trap: cp14 32-bit access")
++PERFCOUNTER(trap_cp14_64,  "trap: cp14 64-bit access")
++PERFCOUNTER(trap_cp14_dbg, "trap: cp14 dbg access")
++PERFCOUNTER(trap_cp,       "trap: cp access")
++PERFCOUNTER(trap_smc32,    "trap: 32-bit smc")
++PERFCOUNTER(trap_hvc32,    "trap: 32-bit hvc")
++#ifdef CONFIG_ARM_64
++PERFCOUNTER(trap_smc64,    "trap: 64-bit smc")
++PERFCOUNTER(trap_hvc64,    "trap: 64-bit hvc")
++PERFCOUNTER(trap_sysreg,   "trap: sysreg access")
++#endif
++PERFCOUNTER(trap_iabt,     "trap: guest instr abort")
++PERFCOUNTER(trap_dabt,     "trap: guest data abort")
++PERFCOUNTER(trap_uncond,   "trap: condition failed")
++
++PERFCOUNTER(vpsci_cpu_on,              "vpsci: cpu_on")
++PERFCOUNTER(vpsci_cpu_off,             "vpsci: cpu_off")
++PERFCOUNTER(vpsci_version,             "vpsci: version")
++PERFCOUNTER(vpsci_migrate_info_type,   "vpsci: migrate_info_type")
++PERFCOUNTER(vpsci_migrate_info_up_cpu, "vpsci: migrate_info_up_cpu")
++PERFCOUNTER(vpsci_system_off,          "vpsci: system_off")
++PERFCOUNTER(vpsci_system_reset,        "vpsci: system_reset")
++PERFCOUNTER(vpsci_cpu_suspend,         "vpsci: cpu_suspend")
++PERFCOUNTER(vpsci_cpu_affinity_info,   "vpsci: cpu_affinity_info")
++PERFCOUNTER(vpsci_cpu_migrate,         "vpsci: cpu_migrate")
++
++PERFCOUNTER(vgicd_reads,                "vgicd: read")
++PERFCOUNTER(vgicd_writes,               "vgicd: write")
++PERFCOUNTER(vgicr_reads,                "vgicr: read")
++PERFCOUNTER(vgicr_writes,               "vgicr: write")
++PERFCOUNTER(vgic_sysreg_reads,          "vgic: sysreg read")
++PERFCOUNTER(vgic_sysreg_writes,         "vgic: sysreg write")
++PERFCOUNTER(vgic_sgi_list  ,            "vgic: SGI send to list")
++PERFCOUNTER(vgic_sgi_others,            "vgic: SGI send to others")
++PERFCOUNTER(vgic_sgi_self,              "vgic: SGI send to self")
++PERFCOUNTER(vgic_cross_cpu_intr_inject, "vgic: cross-CPU irq inject")
++PERFCOUNTER(vgic_irq_migrates,          "vgic: irq migration")
++
++PERFCOUNTER(vuart_reads,  "vuart: read")
++PERFCOUNTER(vuart_writes, "vuart: write")
++
++PERFCOUNTER(vtimer_cp32_reads,   "vtimer: cp32 read")
++PERFCOUNTER(vtimer_cp32_writes,  "vtimer: cp32 write")
++
++PERFCOUNTER(vtimer_cp64_reads,   "vtimer: cp64 read")
++PERFCOUNTER(vtimer_cp64_writes,  "vtimer: cp64 write")
++
++PERFCOUNTER(vtimer_sysreg_reads,  "vtimer: sysreg read")
++PERFCOUNTER(vtimer_sysreg_writes, "vtimer: sysreg write")
++
++PERFCOUNTER(vtimer_phys_inject,   "vtimer: phys expired, injected")
++PERFCOUNTER(vtimer_phys_masked,   "vtimer: phys expired, masked")
++PERFCOUNTER(vtimer_virt_inject,   "vtimer: virt expired, injected")
++
++PERFCOUNTER(ppis,                 "#PPIs")
++PERFCOUNTER(spis,                 "#SPIs")
++PERFCOUNTER(guest_irqs,           "#GUEST-IRQS")
++
++PERFCOUNTER(hyp_timer_irqs,   "Hypervisor timer interrupts")
++PERFCOUNTER(phys_timer_irqs,  "Physical timer interrupts")
++PERFCOUNTER(virt_timer_irqs,  "Virtual timer interrupts")
++PERFCOUNTER(maintenance_irqs, "Maintenance interrupts")
++
++/*#endif*/ /* __XEN_PERFC_DEFN_H__ */
++
++/*
++ * Local variables:
++ * mode: C
++ * c-file-style: "BSD"
++ * c-basic-offset: 4
++ * indent-tabs-mode: nil
++ * End:
++ */

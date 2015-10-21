@@ -21,6 +21,8 @@
 #include <asm/debugger.h>
 #include <asm/div64.h>
 
+#include <xen/exit.h>
+
 static struct keyhandler *key_table[256];
 static unsigned char keypress_key;
 static bool_t alt_key_handling;
@@ -550,6 +552,19 @@ unsigned long idle_switch_time = 0;
 unsigned long total_switch = 0;
 unsigned long total_dom0_switch_cnt = 0;
 unsigned long total_domU_switch_cnt = 0;
+unsigned long arch_timer_rate = 50;
+
+static const char* trap_stat_names[TRAP_MAX] = {
+	[TRAP_HVC]		= "--HVC",
+	[TRAP_HVC_GRANT]	= "--HVC_GRANT",
+	[TRAP_WFE]		= "--WFE",
+	[TRAP_WFI]		= "--WFI",
+	[TRAP_IO_KERNEL]	= "--IO_KERNEL",
+	[TRAP_IRQ]		= "--IRQ",
+	[TRAP_IRQ_HYP]		= "--IRQ_HYP",
+	[TRAP_SGI]		= "--SGI",
+	[TRAP_OTHER]		= "--OTHER",
+};
 
 /* This function is called with rcu_read_lock held */
 static void update_stat(unsigned long stop_time)
@@ -571,15 +586,11 @@ static void update_stat(unsigned long stop_time)
 		d->cnt_switch_to_xen = 0;
 		d->acc_ctx = 0;
 		d->cnt_ctx = 0;
-		d->irq_cnt = 0;
-		d->hyp_cnt = 0;
 
-		d->exit_wfi = 0;
-		d->exit_wfe = 0;
-		d->exit_hyp = 0;
-		d->exit_sys = 0;
-		for (i = 0 ; i < hyp_table_size; i++)
-			d->hyp_table[i] = 0;
+		for (i = 0 ; i < TRAP_MAX; i++) {
+			d->trap_breakdown_time[i] = 0;
+			d->trap_breakdown_cnt[i] = 0;
+		}
 
 		for_each_vcpu ( d, v )
 		{
@@ -599,16 +610,10 @@ static void update_stat(unsigned long stop_time)
 			d->acc_ctx_vcpu += v->acc_ctx_vcpu;
 			d->acc_ctx += v->acc_ctx;
 			d->cnt_ctx += v->cnt_ctx;
-			d->irq_cnt += v->irq_cnt;
-			d->hyp_cnt += v->hyp_cnt;
-
-			d->exit_wfi += v->exit_wfi;
-			d->exit_wfe += v->exit_wfe;
-			d->exit_hyp += v->exit_hyp;
-			d->exit_sys += v->exit_sys;
-
-			for (i = 0 ; i < hyp_table_size; i++)
-				d->hyp_table[i] += v->hyp_table[i];
+			for (i = 0 ; i < TRAP_MAX; i++) {
+				d->trap_breakdown_time[i] += v->trap_breakdown_time[i];
+				d->trap_breakdown_cnt[i] += v->trap_breakdown_cnt[i];
+			}
 		}
 	}
 
@@ -628,6 +633,16 @@ static void update_stat(unsigned long stop_time)
         }
 }
 
+#define msec(x) ((x) * 20 / 1000 / 1000)
+#define print_rec(lbl, d1, d2) \
+	printk("%20s %12"PRIu64" %12"PRIu64"\n", \
+		lbl, d1, msec(d2))
+#define print_rec4(lbl, d1, d2) \
+	printk("%20s %12"PRIu64" %12"PRIu64" %12d\n", \
+		lbl, d1, msec(d1), d2)
+#define print_raw(lbl, d1, d2) \
+	printk("%20s %12"PRIu64" %12"PRIu64"\n", \
+		lbl, d1, d2)
 static void print_per_domain_stat(unsigned long duration)
 {
 	struct domain *d;
@@ -649,32 +664,24 @@ static void print_per_domain_stat(unsigned long duration)
 		}
 		*/
 		printk("<Domain %u Summary>\n", d->domain_id);
-		printk("Total:        \t%12"PRIu64"\n", d->acc_domain_time/20);
-		printk("VM (EL0, EL1):\t%12"PRIu64"\n", d->acc_guest_time);
+		print_raw("Total:",  (long unsigned int)0, (long unsigned int)d->acc_domain_time);
+		print_rec("VM (EL0, EL1):", d->acc_guest_time, d->acc_guest_time);
 		xen_time = d->acc_domain_time/20 - d->acc_guest_time;
-		printk("Xen (EL2):    \t%12"PRIu64"\n", xen_time);
-		printk("-Do_trap:     \t%12"PRIu64"\n", d->acc_do_trap_time);
-		printk("-EL2 Switch:  \t%12"PRIu64"\n", d->acc_switch_to_xen + d->acc_switch_to_dom);
-		printk("-EL2 Switch cnt: \t%12"PRIu64"\n", d->cnt_switch_to_xen);
-		printk("-EL2 Switch irq: \t%12"PRIu64"\n", d->irq_cnt);
-		printk("-EL2 Switch hyp: \t%12"PRIu64"\n", d->hyp_cnt);
-
-		printk("-EL2 Exit wfi: \t%12"PRIu64"\n", d->exit_wfi);
-		printk("-EL2 Exit wfe: \t%12"PRIu64"\n", d->exit_wfe);
-		printk("-EL2 Exit hyp: \t%12"PRIu64"\n", d->exit_hyp);
-		printk("-EL2 Exit sys: \t%12"PRIu64"\n", d->exit_sys);
+		print_rec("Xen (EL2):", xen_time, xen_time);
+		print_rec("-Do_trap:", d->acc_do_trap_time, d->acc_do_trap_time);
+		for (i = 0 ; i < TRAP_MAX; i++)
+			print_rec4(trap_stat_names[i],
+					d->trap_breakdown_time[i],
+					d->trap_breakdown_cnt[i]);
+		print_rec4("-EL2 Switch:", d->acc_switch_to_xen + d->acc_switch_to_dom, (int)d->cnt_switch_to_xen);
+		print_rec4("-VCPU Switch:", d->acc_ctx, (int)d->cnt_ctx);
+		print_rec4("-Rest:", xen_time - d->acc_do_trap_time - \
+			d->acc_switch_to_xen - d->acc_switch_to_dom - d->acc_ctx, 0);
 		
-		for (i = 0; i < hyp_table_size; i++)
-			printk("-HYP table [%d]: \t%12d\n", i, d->hyp_table[i]);
-
                 /*
 		printk("--to_Xen:\t%12"PRIu64"\n", d->acc_switch_to_xen);
 		printk("--to_Dom:\t%12"PRIu64"\n", d->acc_switch_to_dom);
                 */
-		printk("-VCPU Switch: \t%12"PRIu64"\n", d->acc_ctx);
-		printk("-VCPU Switch cnt: \t%12"PRIu64"\n", d->cnt_ctx);
-		printk("-Rest:        \t%12"PRIu64"\n", xen_time - d->acc_do_trap_time - \
-			d->acc_switch_to_xen - d->acc_switch_to_dom - d->acc_ctx);
                 /*
 		printk("Swi_Xen_cnt:\t%12"PRIu64"\n", d->cnt_switch_to_xen);
 		printk("to_xen:\t%9"PRIu64"/10 per switch\n", d->acc_switch_to_xen*10 / d->cnt_switch_to_xen);
@@ -691,6 +698,7 @@ static void init_stat(unsigned long start_time)
 	struct vcpu   *v;
 	struct vcpu_runstate_info runstate;
 	int i = 0;
+
 	for_each_domain ( d )
 	{
 		for_each_vcpu ( d, v )
@@ -709,15 +717,11 @@ static void init_stat(unsigned long start_time)
 			v->acc_ctx = 0;
 			v->cnt_ctx = 0;
 			v->cnt_switch_to_xen = 0;
-			v->irq_cnt = 0;
-			v->hyp_cnt = 0;
-			for (i = 0 ; i < hyp_table_size; i++)
-				v->hyp_table[i] = 0;
+			for (i = 0 ; i < TRAP_MAX; i++) {
+				v->trap_breakdown_time[i] = 0;
+				v->trap_breakdown_cnt[i] = 0;
+			}
 
-			    v->exit_wfi = 0;
-			    v->exit_wfe = 0;
-			    v->exit_hyp = 0;
-			    v->exit_sys = 0;
 			vcpu_runstate_get(v, &runstate);
 			v->init_running_time= runstate.time[RUNSTATE_running];
 		}

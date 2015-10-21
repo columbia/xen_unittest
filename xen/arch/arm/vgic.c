@@ -293,6 +293,7 @@ int vgic_to_sgi(struct vcpu *v, register_t sgir, enum gic_sgi_mode irqmode, int 
     struct domain *d = v->domain;
     int vcpuid;
     int i;
+	current->exit_reason = TRAP_SGI;
 
     ASSERT(d->max_vcpus < 8*sizeof(vcpu_mask));
 
