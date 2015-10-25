@@ -2627,7 +2627,6 @@ do_grant_table_op(
 {
     long rc;
     unsigned int opaque_in = cmd & GNTTABOP_ARG_MASK, opaque_out = 0;
-current->exit_reason = TRAP_HVC_GRANT;
     
     if ( (int)count < 0 )
         return -EINVAL;
@@ -2708,6 +2707,7 @@ current->exit_reason = TRAP_HVC_GRANT;
     {
         XEN_GUEST_HANDLE_PARAM(gnttab_copy_t) copy =
             guest_handle_cast(uop, gnttab_copy_t);
+	current->exit_reason = TRAP_HVC_GRANT;
         if ( unlikely(!guest_handle_okay(copy, count)) )
             goto out;
         rc = gnttab_copy(copy, count);

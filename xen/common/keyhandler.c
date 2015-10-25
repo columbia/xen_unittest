@@ -556,7 +556,7 @@ unsigned long arch_timer_rate = 50;
 
 static const char* trap_stat_names[TRAP_MAX] = {
 	[TRAP_HVC]		= "--HVC",
-	[TRAP_HVC_GRANT]	= "--HVC_GRANT",
+	[TRAP_HVC_GRANT]	= "--HVC_GRANT_CPY",
 	[TRAP_WFE]		= "--WFE",
 	[TRAP_WFI]		= "--WFI",
 	[TRAP_IO_KERNEL]	= "--IO_KERNEL",
