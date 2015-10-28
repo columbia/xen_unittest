@@ -634,6 +634,9 @@ static void update_stat(unsigned long stop_time)
 }
 
 #define msec(x) ((x) * 20 / 1000 / 1000)
+#define print_title(st1, st2, st3, st4) \
+	printk("%20s %12s %12s %12s\n", \
+		st1, st2, st3, st4)
 #define print_rec(lbl, d1, d2) \
 	printk("%20s %12"PRIu64" %12"PRIu64"\n", \
 		lbl, d1, msec(d2))
@@ -642,7 +645,7 @@ static void update_stat(unsigned long stop_time)
 		lbl, d1, msec(d1), d2)
 #define print_raw(lbl, d1, d2) \
 	printk("%20s %12"PRIu64" %12"PRIu64"\n", \
-		lbl, d1, d2)
+		lbl, d1, msec(d2))
 static void print_per_domain_stat(unsigned long duration)
 {
 	struct domain *d;
@@ -650,7 +653,7 @@ static void print_per_domain_stat(unsigned long duration)
 	int i = 0;
 
         printk("<---------- Per Domain Stat (Unit: arch counter) ---------->\n");
-	printk("Elapsed:       \t%12"PRIu64"\n", duration);
+	printk("Elapsed:       \t%12"PRIu64" msec\n", msec(duration));
 	for_each_domain ( d )
 	{
 		/*
@@ -664,7 +667,8 @@ static void print_per_domain_stat(unsigned long duration)
 		}
 		*/
 		printk("<Domain %u Summary>\n", d->domain_id);
-		print_raw("Total:",  (long unsigned int)0, (long unsigned int)d->acc_domain_time);
+		print_title("", "arch counter", "msec", "nr");
+		print_raw("Total:",  (long unsigned int)0, (long unsigned int)d->acc_domain_time/20);
 		print_rec("VM (EL0, EL1):", d->acc_guest_time, d->acc_guest_time);
 		xen_time = d->acc_domain_time/20 - d->acc_guest_time;
 		print_rec("Xen (EL2):", xen_time, xen_time);
@@ -688,8 +692,10 @@ static void print_per_domain_stat(unsigned long duration)
 		printk("to_dom:\t%9"PRIu64"/10 per switch\n", d->acc_switch_to_dom*10 / d->cnt_switch_to_xen);
                 */
 	}
+/*
 	printk("Dom0 VCPU Switch cnt: \t%12"PRIu64"\n", total_dom0_switch_cnt);
 	printk("DomU VCPU Switch cnt: \t%12"PRIu64"\n", total_domU_switch_cnt);
+*/
 }
 
 static void init_stat(unsigned long start_time)
