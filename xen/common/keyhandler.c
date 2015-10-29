@@ -563,6 +563,7 @@ static const char* trap_stat_names[TRAP_MAX] = {
 	[TRAP_IRQ]		= "--IRQ",
 	[TRAP_IRQ_HYP]		= "--IRQ_HYP",
 	[TRAP_SGI]		= "--SGI",
+	[TRAP_ABORT]		= "--ABORT",
 	[TRAP_OTHER]		= "--OTHER",
 };
 
@@ -581,7 +582,6 @@ static void update_stat(unsigned long stop_time)
 		d->acc_do_trap_time = 0;
 		d->acc_switch_to_xen = 0;
 		d->acc_switch_to_dom = 0;
-		d->acc_ctx_callee = 0;
 		d->acc_ctx_vcpu = 0;
 		d->cnt_switch_to_xen = 0;
 		d->acc_ctx = 0;
@@ -606,7 +606,6 @@ static void update_stat(unsigned long stop_time)
 			d->acc_switch_to_xen += v->acc_switch_to_xen;
 			d->acc_switch_to_dom += v->acc_switch_to_dom;
 			d->cnt_switch_to_xen += v->cnt_switch_to_xen;
-			d->acc_ctx_callee += v->acc_ctx_callee;
 			d->acc_ctx_vcpu += v->acc_ctx_vcpu;
 			d->acc_ctx += v->acc_ctx;
 			d->cnt_ctx += v->cnt_ctx;
@@ -718,7 +717,6 @@ static void init_stat(unsigned long start_time)
 			v->acc_do_trap_time = 0;
 			v->acc_switch_to_xen = 0;
 			v->acc_switch_to_dom = 0;
-			v->acc_ctx_callee = 0;
 			v->acc_ctx_vcpu = 0;
 			v->acc_ctx = 0;
 			v->cnt_ctx = 0;

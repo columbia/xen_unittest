@@ -11,6 +11,7 @@ enum trap_reason {
 	TRAP_IRQ,
 	TRAP_IRQ_HYP,
 	TRAP_OTHER,
+	TRAP_ABORT,
 	TRAP_MAX
 };
 

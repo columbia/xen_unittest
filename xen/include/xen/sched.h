@@ -258,7 +258,6 @@ struct vcpu
     uint64_t acc_switch_to_xen;
     uint64_t acc_switch_to_dom;
     uint64_t acc_ctx_vcpu;
-    uint64_t acc_ctx_callee;
     uint64_t acc_ctx;
     uint64_t cnt_ctx;
 	int exit_reason;
@@ -501,7 +500,6 @@ struct domain
     uint64_t acc_do_trap_time;	/* arch counter */
     uint64_t acc_switch_to_xen;	/* arch counter */
     uint64_t acc_switch_to_dom;	/* arch counter */
-    uint64_t acc_ctx_callee;
     uint64_t acc_ctx_vcpu;
     uint64_t acc_ctx;
     uint64_t cnt_ctx;

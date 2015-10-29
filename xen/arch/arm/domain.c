@@ -297,7 +297,6 @@ struct vcpu* context_switch(struct vcpu *prev, struct vcpu *next)
 
     prev->ts_callee_start = xen_arm_read_pcounter(); 
     prev = __context_switch(prev, next);
-    current->acc_ctx_callee += xen_arm_read_pcounter() - prev->ts_callee_start; 
 
     schedule_tail(prev);
 

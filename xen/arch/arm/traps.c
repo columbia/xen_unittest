@@ -2177,9 +2177,11 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 #endif
 
     case HSR_EC_INSTR_ABORT_LOWER_EL:
+	current->exit_reason = TRAP_ABORT;
         do_trap_instr_abort_guest(regs, hsr);
         break;
     case HSR_EC_DATA_ABORT_LOWER_EL:
+	current->exit_reason = TRAP_ABORT;
         do_trap_data_abort_guest(regs, hsr);
         break;
 
