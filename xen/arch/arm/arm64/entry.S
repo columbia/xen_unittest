@@ -202,7 +202,9 @@ guest_irq:
 
 guest_fiq_invalid:
         entry   hyp=0, compat=0
-        invalid BAD_FIQ
+        mov     x0, sp
+        bl      do_trap_fiq
+        exit    hyp=0, compat=0
 
 guest_error_invalid:
         entry   hyp=0, compat=0
