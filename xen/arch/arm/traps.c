@@ -79,7 +79,9 @@ void __cpuinit init_traps(void)
     WRITE_SYSREG((vaddr_t)hyp_traps_vector, VBAR_EL2);
 
     /* Trap Debug and Performance Monitor accesses */
-    WRITE_SYSREG(HDCR_TDRA|HDCR_TDOSA|HDCR_TDA|HDCR_TPM|HDCR_TPMCR,
+    /* WRITE_SYSREG(HDCR_TDRA|HDCR_TDOSA|HDCR_TDA|HDCR_TPM|HDCR_TPMCR, */
+    /* Do not trap to hyp when accessing pmu registers */
+    WRITE_SYSREG(HDCR_TDRA|HDCR_TDOSA|HDCR_TDA,
                  MDCR_EL2);
 
     /* Trap CP15 c15 used for implementation defined registers */
