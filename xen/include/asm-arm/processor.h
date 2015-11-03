@@ -176,6 +176,9 @@
 /* HSTR Hyp. System Trap Register */
 #define HSTR_T(x)       ((_AC(1,U)<<(x)))       /* Trap Cp15 c<x> */
 
+/* PMCR_EL0, Performance Monitors Control Register */
+#define PMCR_EL0_N_MASK (_AC(0x1f,U)<<11)       /* Number of event counters */
+
 /* HDCR Hyp. Debug Configuration Register */
 #define HDCR_TDRA       (_AC(1,U)<<11)          /* Trap Debug ROM access */
 #define HDCR_TDOSA      (_AC(1,U)<<10)          /* Trap Debug-OS-related register access */
