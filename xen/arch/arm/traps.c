@@ -75,13 +75,19 @@ integer_param("debug_stack_lines", debug_stack_lines);
 
 void __cpuinit init_traps(void)
 {
+    register_t pmcr_el0_n;
+
     /* Setup Hyp vector base */
     WRITE_SYSREG((vaddr_t)hyp_traps_vector, VBAR_EL2);
 
+    pmcr_el0_n = READ_SYSREG(PMCR_EL0);
+    pmcr_el0_n |= PMCR_EL0_N_MASK;      /* Number of event counters */
+    pmcr_el0_n = (pmcr_el0_n >> 11);
+
     /* Trap Debug and Performance Monitor accesses */
     /* WRITE_SYSREG(HDCR_TDRA|HDCR_TDOSA|HDCR_TDA|HDCR_TPM|HDCR_TPMCR, */
-    /* Do not trap to hyp when accessing pmu registers */
-    WRITE_SYSREG(HDCR_TDRA|HDCR_TDOSA|HDCR_TDA,
+    /* Do not trap to hyp when accessing pmu registers, Set # of event counters */
+    WRITE_SYSREG(HDCR_TDRA|HDCR_TDOSA|HDCR_TDA|pmcr_el0_n,
                  MDCR_EL2);
 
     /* Trap CP15 c15 used for implementation defined registers */
