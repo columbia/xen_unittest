@@ -61,6 +61,8 @@
 #define GICH_V2_VMCR_PRIORITY_MASK   0x1f
 #define GICH_V2_VMCR_PRIORITY_SHIFT  27
 
+#define GICC_BYPASS_MASK            0x60 /* IRQBypDisGrp1, FIQBypDisGrp1 */
+
 /* Global state */
 static struct {
     paddr_t dbase;            /* Address of distributor registers */
@@ -288,40 +290,46 @@ static void __init gicv2_dist_init(void)
 }
 
 
-static inline void writel_gicd_secure(uint32_t val, unsigned int offset)
+void writel_gicd_secure(uint32_t val, unsigned int offset)
 {
     writel_relaxed(val, gicv2.map_sec_dbase + offset);
 }
 
-static inline void writel_gicc_secure(uint32_t val, unsigned int offset)
+void writel_gicc_secure(uint32_t val, unsigned int offset)
 {
     writel_relaxed(val, gicv2.map_sec_cbase + offset);
 }
 
-static inline uint32_t readl_gicd_secure(unsigned int offset)
+uint32_t readl_gicd_secure(unsigned int offset)
 {
     return readl_relaxed(gicv2.map_sec_dbase + offset);
 }
 
-static inline uint32_t readl_gicc_secure(unsigned int offset)
+uint32_t readl_gicc_secure(unsigned int offset)
 {
     return readl_relaxed(gicv2.map_sec_cbase + offset);
 }
 
-static void __cpuinit gicv2_cpu_init(void)
+void print_gic_sec(char * str)
 {
-    int i;
     uint32_t gicc_ctlr, gicd_igroup0, gicd_ctlr;
 
     gicc_ctlr = readl_gicc_secure(GICC_CTLR);
     gicd_ctlr = readl_gicd_secure(GICD_CTLR);
     gicd_igroup0 = readl_gicd_secure(GICD_IGROUPR);
 
-    printk(" GIC settings for CPU %d:\n"
+    printk(" [%s]GIC settings for CPU %d:\n"
            "      GICD_CTLR:    0x%x\n"
            "      GICD_IGROUP0: 0x%x\n"
            "      GICC_CTLR:    0x%x\n",
+	str,
            smp_processor_id(), gicd_ctlr, gicd_igroup0, gicc_ctlr);
+}
+
+static void __cpuinit gicv2_cpu_init(void)
+{
+    int i;
+    uint32_t bypass;
 
     this_cpu(gic_cpu_id) = readl_gicd(GICD_ITARGETSR) & 0xff;
 
@@ -330,7 +338,6 @@ static void __cpuinit gicv2_cpu_init(void)
      * be set up here with the other per-cpu state. */
     writel_gicd(0xffff0000, GICD_ICENABLER); /* Disable all PPI */
     writel_gicd(0x0000ffff, GICD_ISENABLER); /* Enable all SGI */
-
     /* Set SGI priorities */
     for ( i = 0; i < 16; i += 4 )
         writel_gicd(GIC_PRI_IPI << 24 | GIC_PRI_IPI << 16 |
@@ -349,7 +356,14 @@ static void __cpuinit gicv2_cpu_init(void)
     /* Finest granularity of priority */
     writel_gicc(0x0, GICC_BPR);
     /* Turn on delivery */
-    writel_gicc(GICC_CTL_ENABLE|GICC_CTL_EOI, GICC_CTLR);
+
+    bypass = readl_gicc(GICC_CTLR);
+    bypass &= GICC_BYPASS_MASK;
+
+	print_gic_sec("gicv2_cpu_init before write");
+    writel_gicc(GICC_CTL_ENABLE|GICC_CTL_EOI|bypass, GICC_CTLR);
+
+	print_gic_sec("gicv2_cpu_init after write");
 }
 
 static void gicv2_cpu_disable(void)

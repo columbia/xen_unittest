@@ -174,6 +174,9 @@ int request_irq(unsigned int irq, unsigned int irqflags,
     return retval;
 }
 
+extern uint32_t readl_gicd_secure(unsigned int offset);
+extern uint32_t readl_gicc_secure(unsigned int offset);
+
 /* Dispatch an interrupt */
 void do_IRQ(struct cpu_user_regs *regs, unsigned int irq, int is_fiq)
 {
@@ -194,6 +197,21 @@ void do_IRQ(struct cpu_user_regs *regs, unsigned int irq, int is_fiq)
                is_fiq ? "FIQ" : "IRQ", irq);
         goto out;
     }
+    if (is_fiq == 1) {
+	    uint32_t gicc_ctlr, gicd_igroup0, gicd_ctlr;
+	    printk("FIQ irq: %d\n", irq);
+
+	    gicc_ctlr = readl_gicc_secure(GICC_CTLR);
+	    gicd_ctlr = readl_gicd_secure(GICD_CTLR);
+	    gicd_igroup0 = readl_gicd_secure(GICD_IGROUPR);
+
+	    printk(" GIC settings for CPU %d:\n"
+			    "      GICD_CTLR:    0x%x\n"
+			    "      GICD_IGROUP0: 0x%x\n"
+			    "      GICC_CTLR:    0x%x\n",
+			    smp_processor_id(), gicd_ctlr, gicd_igroup0, gicc_ctlr);
+	    BUG_ON(1);
+	}
 
     if ( test_bit(_IRQ_GUEST, &desc->status) )
     {
