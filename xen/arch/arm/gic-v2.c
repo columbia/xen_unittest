@@ -61,6 +61,7 @@
 #define GICH_V2_VMCR_PRIORITY_MASK   0x1f
 #define GICH_V2_VMCR_PRIORITY_SHIFT  27
 
+#define GICC_BYPASS_MASK            0x60 /* IRQBypDisGrp1, FIQBypDisGrp1 of non-secure copy */
 /* Global state */
 static struct {
     paddr_t dbase;            /* Address of distributor registers */
@@ -284,6 +285,7 @@ static void __init gicv2_dist_init(void)
 static void __cpuinit gicv2_cpu_init(void)
 {
     int i;
+    uint32_t bypass;
 
     this_cpu(gic_cpu_id) = readl_gicd(GICD_ITARGETSR) & 0xff;
 
@@ -311,7 +313,11 @@ static void __cpuinit gicv2_cpu_init(void)
     /* Finest granularity of priority */
     writel_gicc(0x0, GICC_BPR);
     /* Turn on delivery */
-    writel_gicc(GICC_CTL_ENABLE|GICC_CTL_EOI, GICC_CTLR);
+
+    bypass = readl_gicc(GICC_CTLR);
+    bypass &= GICC_BYPASS_MASK;
+
+    writel_gicc(GICC_CTL_ENABLE|GICC_CTL_EOI|bypass, GICC_CTLR);
 }
 
 static void gicv2_cpu_disable(void)
