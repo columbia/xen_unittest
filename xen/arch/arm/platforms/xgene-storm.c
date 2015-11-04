@@ -44,6 +44,24 @@ static void xgene_check_pirq_eoi(void)
     struct dt_device_node *node;
     int res;
     paddr_t dbase;
+    void __iomem *gic_sec_addr;
+
+    gic_sec_addr = ioremap_nocache(XGENE_SEC_GICV2_DIST_ADDR, 0x12000);
+    if ( !gic_sec_addr )
+    {
+        printk("XGENE: Unable to map xgene secure GIC address, boo hoo...\n");
+    } else {
+        u32 igroup0;
+        u32 gicc_ctlr;
+        void __iomem *gicc_sec_addr = gic_sec_addr + 0x10000;
+
+        igroup0 = readl(gic_sec_addr + 0x080);
+        igroup0 |= (1 << 28);
+        writel(igroup0, gic_sec_addr + 0x080);
+
+        gicc_ctlr = readl(gicc_sec_addr);
+        printk("XGENE: GICC_CTLR: 0x%0x\n", gicc_ctlr);
+    }
 
     dt_for_each_device_node( dt_host, node )
     {

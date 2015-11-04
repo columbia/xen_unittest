@@ -335,3 +335,4 @@ docs/txt/man/*.txt
 docs/figs/*.png
 
 uXen
+*.patch

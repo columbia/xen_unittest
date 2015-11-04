@@ -70,6 +70,12 @@ static struct {
     paddr_t hbase;            /* Address of virtual interface registers */
     void __iomem * map_hbase; /* IO Address of virtual interface registers */
     paddr_t vbase;            /* Address of virtual cpu interface registers */
+    /* HACK */
+    paddr_t sec_dbase;
+    void __iomem * map_sec_dbase;
+    paddr_t sec_cbase;
+    void __iomem * map_sec_cbase;
+    /* END-HACK */
     spinlock_t lock;
 } gicv2;
 
@@ -281,9 +287,41 @@ static void __init gicv2_dist_init(void)
     writel_gicd(GICD_CTL_ENABLE, GICD_CTLR);
 }
 
+
+static inline void writel_gicd_secure(uint32_t val, unsigned int offset)
+{
+    writel_relaxed(val, gicv2.map_sec_dbase + offset);
+}
+
+static inline void writel_gicc_secure(uint32_t val, unsigned int offset)
+{
+    writel_relaxed(val, gicv2.map_sec_cbase + offset);
+}
+
+static inline uint32_t readl_gicd_secure(unsigned int offset)
+{
+    return readl_relaxed(gicv2.map_sec_dbase + offset);
+}
+
+static inline uint32_t readl_gicc_secure(unsigned int offset)
+{
+    return readl_relaxed(gicv2.map_sec_cbase + offset);
+}
+
 static void __cpuinit gicv2_cpu_init(void)
 {
     int i;
+    uint32_t gicc_ctlr, gicd_igroup0, gicd_ctlr;
+
+    gicc_ctlr = readl_gicc_secure(GICC_CTLR);
+    gicd_ctlr = readl_gicd_secure(GICD_CTLR);
+    gicd_igroup0 = readl_gicd_secure(GICD_IGROUPR);
+
+    printk(" GIC settings for CPU %d:\n"
+           "      GICD_CTLR:    0x%x\n"
+           "      GICD_IGROUP0: 0x%x\n"
+           "      GICC_CTLR:    0x%x\n",
+           smp_processor_id(), gicd_ctlr, gicd_igroup0, gicc_ctlr);
 
     this_cpu(gic_cpu_id) = readl_gicd(GICD_ITARGETSR) & 0xff;
 
@@ -683,6 +721,7 @@ const static struct gic_hw_operations gicv2_ops = {
     .make_dt_node        = gicv2_make_dt_node,
 };
 
+#define XGENE_SEC_GICV2_DIST_ADDR    0x78010000
 /* Set up the GIC */
 static int __init gicv2_init(struct dt_device_node *node, const void *data)
 {
@@ -705,6 +744,10 @@ static int __init gicv2_init(struct dt_device_node *node, const void *data)
     res = dt_device_get_address(node, 3, &gicv2.vbase, NULL);
     if ( res || !gicv2.vbase || (gicv2.vbase & ~PAGE_MASK) )
         panic("GICv2: Cannot find a valid address for the virtual CPU");
+
+    gicv2.sec_dbase = XGENE_SEC_GICV2_DIST_ADDR;
+    gicv2.sec_cbase = XGENE_SEC_GICV2_DIST_ADDR + 0x10000;
+
 
     res = platform_get_irq(node, 0);
     if ( res < 0 )
@@ -747,6 +790,15 @@ static int __init gicv2_init(struct dt_device_node *node, const void *data)
     gicv2.map_hbase = ioremap_nocache(gicv2.hbase, PAGE_SIZE);
     if ( !gicv2.map_hbase )
         panic("GICv2: Failed to ioremap for GIC Virtual interface\n");
+
+
+    gicv2.map_sec_dbase = ioremap_nocache(gicv2.sec_dbase, PAGE_SIZE);
+    if ( !gicv2.map_sec_dbase )
+        panic("GICv2: Failed to ioremap for secure GIC distributor\n");
+
+    gicv2.map_sec_cbase = ioremap_nocache(gicv2.sec_cbase, PAGE_SIZE);
+    if ( !gicv2.map_sec_cbase )
+        panic("GICv2: Failed to ioremap for secure GIC CPU interface\n");
 
     /* Global settings: interrupt distributor */
     spin_lock_init(&gicv2.lock);
