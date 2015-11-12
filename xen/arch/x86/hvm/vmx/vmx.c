@@ -58,6 +58,7 @@
 #include <asm/hvm/nestedhvm.h>
 #include <asm/event.h>
 #include <public/arch-x86/cpuid.h>
+#include <xen/virt_test.h>
 
 static bool_t __initdata opt_force_ept;
 boolean_param("force-ept", opt_force_ept);
@@ -2638,6 +2639,12 @@ void vmx_handle_EOI_induced_exit(struct vlapic *vlapic, int vector)
     vlapic_handle_EOI_induced_exit(vlapic, vector);
 }
 
+#ifdef VM_SWITCH
+extern unsigned long cc_before;
+extern volatile int xen_vmswitch_ping_sent;
+extern struct waitqueue_head vmswitch_queue_x86;
+#define HVC_VMSWITCH_RCV       0x4b000020
+#endif
 void vmx_vmexit_handler(struct cpu_user_regs *regs)
 {
     unsigned long exit_qualification, exit_reason, idtv_info, intr_info = 0;
@@ -2955,7 +2962,20 @@ void vmx_vmexit_handler(struct cpu_user_regs *regs)
     {
         int rc;
         HVMTRACE_1D(VMMCALL, regs->eax);
+#ifdef VM_SWITCH
+	if (regs->rax == HVC_VMSWITCH_RCV)
+	{
+	        wait_event(vmswitch_queue_x86, xen_vmswitch_ping_sent);
+	        xen_vmswitch_ping_sent = 0;
+		regs->rdx = cc_before + v->arch.hvm_vcpu.cache_tsc_offset;
+		rc = HVM_HCALL_completed;
+		goto skip_vmcall;
+	}
+#endif
         rc = hvm_do_hypercall(regs);
+#ifdef VM_SWITCH
+skip_vmcall:
+#endif
         if ( rc != HVM_HCALL_preempted )
         {
             update_guest_eip(); /* Safe: VMCALL */

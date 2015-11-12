@@ -17,6 +17,7 @@
 #include <asm/current.h>
 #include <public/nmi.h>
 #include <public/version.h>
+#include <xen/virt_test.h>
 
 #ifndef COMPAT
 
@@ -222,12 +223,52 @@ void __init do_initcalls(void)
 
 # define DO(fn) long do_##fn
 
+
+#ifdef VM_SWITCH
+volatile int xen_vmswitch_ping_sent = 0;
+DEFINE_WAITQUEUE_HEAD(vmswitch_queue_x86);
+#define HVC_VMSWITCH_SEND      0x4b000010
+#define HVC_VMSWITCH_RCV       0x4b000020
+#define HVC_VMSWITCH_DONE      0x4b000030
+unsigned long cc_before;
 #endif
 
-DO(dummy_hyp)(void)
+DO(dummy_hyp)(int cmd, unsigned long cycle)
 {
+
+#ifdef VM_SWITCH
+    if (cmd  == HVC_VMSWITCH_SEND)
+    {
+	    if (list_empty(&vmswitch_queue_x86.list)) {
+		    return  -EAGAIN;
+	    }
+
+	    cc_before = cycle;
+	    xen_vmswitch_ping_sent = 1;
+	    smp_mb();
+	    wake_up_one(&vmswitch_queue_x86);
+	    wait_event(vmswitch_queue_x86, !xen_vmswitch_ping_sent);
+	    return 0;
+
+    }  else if (cmd  == HVC_VMSWITCH_RCV) {
+            /* This will not be reached by HVM. See vmx.c */
+	    /* Assume we have one other VM running */
+	    wait_event(vmswitch_queue_x86, xen_vmswitch_ping_sent);
+	    xen_vmswitch_ping_sent = 0;
+	    return (long) cc_before;
+    } else if (cmd  == HVC_VMSWITCH_DONE) {
+	    /* Assume we have one other VM running */
+	    wake_up_all(&vmswitch_queue_x86);
+	    return 0;
+    }
+    else {
+        return -1;
+    }
+#endif
 	return 135792468;
 }
+
+#endif
 /*
  * Simple hypercalls.
  */

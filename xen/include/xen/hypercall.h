@@ -18,7 +18,7 @@
 #include <xsm/xsm.h>
 
 extern long
-do_dummy_hyp(void);
+do_dummy_hyp(int cmd, unsigned long cc_before);
 
 extern long
 do_ni_hypercall(
