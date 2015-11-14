@@ -2109,6 +2109,9 @@ DEFINE_WAITQUEUE_HEAD(vmswitch_queue);
 #define HVC_VMSWITCH_DONE      0x4b000030
 static unsigned long cc_before;
 #endif
+#define HVC_GET_BACKEND_TS   0x4b000050
+#define HVC_SET_BACKEND_TS   0x4b000060
+static unsigned long iolat_backend_ts = 0;
 
 asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 {
@@ -2121,7 +2124,14 @@ asmlinkage void do_trap_hypervisor(struct cpu_user_regs *regs)
 	    enable_ccounts();
 	    return;
     }
-
+    else if (regs->x0 == HVC_SET_BACKEND_TS) {
+        iolat_backend_ts = regs->x1;
+	return;
+    }
+    else if (regs->x0 == HVC_GET_BACKEND_TS) {
+        regs->x0 = iolat_backend_ts;
+	return;
+    }
 #ifdef VM_SWITCH
     else if (regs->x0 == HVC_VMSWITCH_SEND)
     {
