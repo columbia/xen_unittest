@@ -233,6 +233,9 @@ DEFINE_WAITQUEUE_HEAD(vmswitch_queue_x86);
 unsigned long cc_before;
 #endif
 
+#define HVC_GET_BACKEND_TS   0x4b000050
+#define HVC_SET_BACKEND_TS   0x4b000060
+unsigned long g_iolat_backend_ts = 0;
 DO(dummy_hyp)(int cmd, unsigned long cycle)
 {
 
@@ -265,6 +268,12 @@ DO(dummy_hyp)(int cmd, unsigned long cycle)
         return -1;
     }
 #endif
+   if (cmd == HVC_GET_BACKEND_TS) {
+	return g_iolat_backend_ts;
+   } else if (cmd == HVC_SET_BACKEND_TS) {
+	g_iolat_backend_ts = cycle;
+	return 0;
+   }
 	return 135792468;
 }
 

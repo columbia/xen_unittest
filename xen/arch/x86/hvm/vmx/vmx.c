@@ -2645,6 +2645,8 @@ extern volatile int xen_vmswitch_ping_sent;
 extern struct waitqueue_head vmswitch_queue_x86;
 #define HVC_VMSWITCH_RCV       0x4b000020
 #endif
+#define HVC_GET_BACKEND_TS   0x4b000050
+extern unsigned long g_iolat_backend_ts;
 void vmx_vmexit_handler(struct cpu_user_regs *regs)
 {
     unsigned long exit_qualification, exit_reason, idtv_info, intr_info = 0;
@@ -2972,10 +2974,14 @@ void vmx_vmexit_handler(struct cpu_user_regs *regs)
 		goto skip_vmcall;
 	}
 #endif
+	if (regs->rax == HVC_GET_BACKEND_TS) {
+		regs->rdx = g_iolat_backend_ts + v->arch.hvm_vcpu.cache_tsc_offset;
+		rc = HVM_HCALL_completed;
+		goto skip_vmcall;
+	}
+
         rc = hvm_do_hypercall(regs);
-#ifdef VM_SWITCH
 skip_vmcall:
-#endif
         if ( rc != HVM_HCALL_preempted )
         {
             update_guest_eip(); /* Safe: VMCALL */
