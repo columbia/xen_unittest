@@ -2643,8 +2643,11 @@ void vmx_handle_EOI_induced_exit(struct vlapic *vlapic, int vector)
 extern unsigned long cc_before;
 extern volatile int xen_vmswitch_ping_sent;
 extern struct waitqueue_head vmswitch_queue_x86;
+#define HVC_VMSWITCH_SEND      0x4b000010
 #define HVC_VMSWITCH_RCV       0x4b000020
+#define HVC_VMSWITCH_DONE      0x4b000030
 #endif
+
 #define HVC_GET_BACKEND_TS   0x4b000050
 extern unsigned long g_iolat_backend_ts;
 void vmx_vmexit_handler(struct cpu_user_regs *regs)
@@ -2963,20 +2966,44 @@ void vmx_vmexit_handler(struct cpu_user_regs *regs)
     case EXIT_REASON_VMCALL:
     {
         int rc;
-        HVMTRACE_1D(VMMCALL, regs->eax);
+	HVMTRACE_1D(VMMCALL, regs->eax);
 #ifdef VM_SWITCH
-	if (regs->rax == HVC_VMSWITCH_RCV)
+	if (regs->rax == HVC_VMSWITCH_SEND)
 	{
-	        wait_event(vmswitch_queue_x86, xen_vmswitch_ping_sent);
-	        xen_vmswitch_ping_sent = 0;
-		regs->rdx = cc_before + v->arch.hvm_vcpu.cache_tsc_offset;
+		if (list_empty(&vmswitch_queue_x86.list)) {
+			rc = HVM_HCALL_completed;
+			regs->rax = -EAGAIN;
+			goto skip_vmcall;
+		}
+
+		cc_before = regs->rbx - current->arch.hvm_vcpu.cache_tsc_offset;
+		xen_vmswitch_ping_sent = 1;
+		smp_mb();
+		wake_up_one(&vmswitch_queue_x86);
+		wait_event(vmswitch_queue_x86, !xen_vmswitch_ping_sent);
 		rc = HVM_HCALL_completed;
+		regs->rax = 0;
+		goto skip_vmcall;
+	}
+	else if (regs->rax == HVC_VMSWITCH_RCV)
+	{
+		wait_event(vmswitch_queue_x86, xen_vmswitch_ping_sent);
+		xen_vmswitch_ping_sent = 0;
+		rc = HVM_HCALL_completed;
+		regs->rax = cc_before + v->arch.hvm_vcpu.cache_tsc_offset;
+		goto skip_vmcall;
+	} else if (regs->rax == HVC_VMSWITCH_DONE) {
+		/* Assume we have one other VM running */
+		wake_up_all(&vmswitch_queue_x86);
+		rc = HVM_HCALL_completed;
+		regs->rax = 0;
 		goto skip_vmcall;
 	}
 #endif
 	if (regs->rax == HVC_GET_BACKEND_TS) {
 		regs->rdx = g_iolat_backend_ts + v->arch.hvm_vcpu.cache_tsc_offset;
 		rc = HVM_HCALL_completed;
+		regs->rax = 0;
 		goto skip_vmcall;
 	}
 

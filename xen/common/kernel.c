@@ -246,7 +246,7 @@ DO(dummy_hyp)(int cmd, unsigned long cycle)
 		    return  -EAGAIN;
 	    }
 
-	    cc_before = cycle;
+	    cc_before = cycle; /* Dom0 (PV) uses tsc without offset */
 	    xen_vmswitch_ping_sent = 1;
 	    smp_mb();
 	    wake_up_one(&vmswitch_queue_x86);
@@ -263,10 +263,7 @@ DO(dummy_hyp)(int cmd, unsigned long cycle)
 	    /* Assume we have one other VM running */
 	    wake_up_all(&vmswitch_queue_x86);
 	    return 0;
-    }
-    else {
-        return -1;
-    }
+    } else
 #endif
    if (cmd == HVC_GET_BACKEND_TS) {
 	return g_iolat_backend_ts;

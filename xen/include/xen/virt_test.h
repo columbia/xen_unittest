@@ -1,4 +1,4 @@
-//#define VM_SWITCH
+#define VM_SWITCH
 
 /* For whole context switch measurement */
 //#define MEASURE_CTX
