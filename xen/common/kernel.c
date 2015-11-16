@@ -224,54 +224,55 @@ void __init do_initcalls(void)
 # define DO(fn) long do_##fn
 
 
-#ifdef VM_SWITCH
 volatile int xen_vmswitch_ping_sent = 0;
 DEFINE_WAITQUEUE_HEAD(vmswitch_queue_x86);
 #define HVC_VMSWITCH_SEND      0x4b000010
 #define HVC_VMSWITCH_RCV       0x4b000020
 #define HVC_VMSWITCH_DONE      0x4b000030
 unsigned long cc_before;
-#endif
 
 #define HVC_GET_BACKEND_TS   0x4b000050
 #define HVC_SET_BACKEND_TS   0x4b000060
 unsigned long g_iolat_backend_ts = 0;
 DO(dummy_hyp)(int cmd, unsigned long cycle)
 {
-
-#ifdef VM_SWITCH
-    if (cmd  == HVC_VMSWITCH_SEND)
-    {
-	    if (list_empty(&vmswitch_queue_x86.list)) {
-		    return  -EAGAIN;
-	    }
-
-	    cc_before = cycle; /* Dom0 (PV) uses tsc without offset */
-	    xen_vmswitch_ping_sent = 1;
-	    smp_mb();
-	    wake_up_one(&vmswitch_queue_x86);
-	    wait_event(vmswitch_queue_x86, !xen_vmswitch_ping_sent);
-	    return 0;
-
-    }  else if (cmd  == HVC_VMSWITCH_RCV) {
-            /* This will not be reached by HVM. See vmx.c */
-	    /* Assume we have one other VM running */
-	    wait_event(vmswitch_queue_x86, xen_vmswitch_ping_sent);
-	    xen_vmswitch_ping_sent = 0;
-	    return (long) cc_before;
-    } else if (cmd  == HVC_VMSWITCH_DONE) {
-	    /* Assume we have one other VM running */
-	    wake_up_all(&vmswitch_queue_x86);
-	    return 0;
-    } else
-#endif
-   if (cmd == HVC_GET_BACKEND_TS) {
-	return g_iolat_backend_ts;
-   } else if (cmd == HVC_SET_BACKEND_TS) {
-	g_iolat_backend_ts = cycle;
-	return 0;
-   }
-	return 135792468;
+	switch(cmd) {
+	case HVC_VMSWITCH_SEND:
+		if (list_empty(&vmswitch_queue_x86.list)) {
+			return  -EAGAIN;
+		}
+		cc_before = cycle;
+		if (is_hvm_vcpu(current))
+			cc_before -= current->arch.hvm_vcpu.cache_tsc_offset;
+		xen_vmswitch_ping_sent = 1;
+		smp_mb();
+		wake_up_one(&vmswitch_queue_x86);
+		wait_event(vmswitch_queue_x86, !xen_vmswitch_ping_sent);
+		return 0;
+	case HVC_VMSWITCH_RCV:
+		/* Assume we have one other VM running */
+		wait_event(vmswitch_queue_x86, xen_vmswitch_ping_sent);
+		xen_vmswitch_ping_sent = 0;
+		if (is_hvm_vcpu(current))
+			return cc_before + current->arch.hvm_vcpu.cache_tsc_offset;
+		return cc_before;
+	case HVC_VMSWITCH_DONE:
+		/* Assume we have one other VM running */
+		wake_up_all(&vmswitch_queue_x86);
+		return 0;
+	case HVC_GET_BACKEND_TS:
+		if (is_hvm_vcpu(current))
+			return g_iolat_backend_ts + current->arch.hvm_vcpu.cache_tsc_offset;
+		return g_iolat_backend_ts;
+	case HVC_SET_BACKEND_TS:
+		g_iolat_backend_ts = cycle;
+		if (is_hvm_vcpu(current))
+			g_iolat_backend_ts -= current->arch.hvm_vcpu.cache_tsc_offset;
+		return 0;
+	default:
+		;
+	}
+	return 0x100000000;
 }
 
 #endif
