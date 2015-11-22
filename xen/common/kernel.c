@@ -252,6 +252,9 @@ DO(dummy_hyp)(int cmd, unsigned long cycle)
 	case HVC_VMSWITCH_RCV:
 		/* Assume we have one other VM running */
 		wait_event(vmswitch_queue_x86, xen_vmswitch_ping_sent);
+#ifdef CONFIG_X86
+         	clear_bit(_VPF_migrating, &current->pause_flags); /* This is to prevent needless switching on x86 */
+#endif
 		xen_vmswitch_ping_sent = 0;
 		if (is_hvm_vcpu(current))
 			return cc_before + current->arch.hvm_vcpu.cache_tsc_offset;

@@ -2988,6 +2988,9 @@ void vmx_vmexit_handler(struct cpu_user_regs *regs)
 	else if (regs->rax == HVC_VMSWITCH_RCV)
 	{
 		wait_event(vmswitch_queue_x86, xen_vmswitch_ping_sent);
+#ifdef CONFIG_X86
+         	clear_bit(_VPF_migrating, &current->pause_flags); /* This is to prevent needless switching on x86 */
+#endif
 		xen_vmswitch_ping_sent = 0;
 		rc = HVM_HCALL_completed;
 		regs->rax = cc_before + v->arch.hvm_vcpu.cache_tsc_offset;
