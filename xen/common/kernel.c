@@ -236,6 +236,7 @@ unsigned long cc_before;
 unsigned long g_iolat_backend_ts = 0;
 DO(dummy_hyp)(int cmd, unsigned long cycle)
 {
+#ifdef CONFIG_X86
 	switch(cmd) {
 	case HVC_VMSWITCH_SEND:
 		if (list_empty(&vmswitch_queue_x86.list)) {
@@ -275,6 +276,7 @@ DO(dummy_hyp)(int cmd, unsigned long cycle)
 	default:
 		;
 	}
+#endif
 	return 0x100000000;
 }
 
